@@ -19,8 +19,9 @@ import (
 )
 
 type promVectorSample struct {
-	Metric map[string]string
-	Value  float64
+	Metric    map[string]string
+	Value     float64
+	Timestamp time.Time
 }
 
 type promRangeSample struct {
@@ -150,9 +151,14 @@ func (c *PrometheusQueryClient) QueryVector(ctx context.Context, query string) (
 		if !ok {
 			continue
 		}
+		timestamp, ok := parsePromValueTimestamp(item.Value)
+		if !ok {
+			continue
+		}
 		samples = append(samples, promVectorSample{
-			Metric: item.Metric,
-			Value:  number,
+			Metric:    item.Metric,
+			Value:     number,
+			Timestamp: timestamp,
 		})
 	}
 	promQueryLatency.Record(ctx, time.Since(startedAt).Seconds(), metric.WithAttributes(queryTypeAttr, attribute.String("result", "ok")))
@@ -295,6 +301,17 @@ func parsePromValue(rawValue []any) (float64, bool) {
 		return 0, false
 	}
 	return parsePromNumber(rawValue[1])
+}
+
+func parsePromValueTimestamp(rawValue []any) (time.Time, bool) {
+	if len(rawValue) < 1 {
+		return time.Time{}, false
+	}
+	seconds, ok := parsePromTimestamp(rawValue[0])
+	if !ok {
+		return time.Time{}, false
+	}
+	return time.Unix(seconds, 0).UTC(), true
 }
 
 func parsePromTimestamp(raw any) (int64, bool) {

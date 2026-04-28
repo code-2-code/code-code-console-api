@@ -24,7 +24,7 @@ func main() {
 	providerConnectBaseURL := envOrDefault("CONSOLE_API_PROVIDER_CONNECT_BASE_URL", "http://platform-provider-service:8080")
 	providerAddr := envOrDefault("CONSOLE_API_PROVIDER_GRPC_ADDR", "platform-provider-service:8081")
 	profileAddr := envOrDefault("CONSOLE_API_PROFILE_GRPC_ADDR", "platform-profile-service:8081")
-	egressAddr := envOrDefault("CONSOLE_API_EGRESS_GRPC_ADDR", "platform-egress-service:8081")
+	egressAddr := envOrDefault("CONSOLE_API_EGRESS_GRPC_ADDR", "platform-egress-service.code-code-net.svc.cluster.local:8081")
 	authAddr := envOrDefault("CONSOLE_API_AUTH_GRPC_ADDR", "platform-auth-service:8081")
 	chatAddr := envOrDefault("CONSOLE_API_CHAT_GRPC_ADDR", "platform-chat-service:8081")
 	supportAddr := envOrDefault("CONSOLE_API_SUPPORT_GRPC_ADDR", "platform-support-service:8081")

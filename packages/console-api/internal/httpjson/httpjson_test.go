@@ -12,7 +12,7 @@ func TestWithCORSAllowsDelete(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	request := httptest.NewRequest(http.MethodOptions, "/api/connect/platform.model.v1.ModelService/ListModelDefinitions", nil)
+	request := httptest.NewRequest(http.MethodOptions, "/api/connect/platform.model.v1.ModelService/ListModels", nil)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 

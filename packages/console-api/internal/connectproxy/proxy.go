@@ -31,8 +31,8 @@ func NewHandler(config Config) (http.Handler, error) {
 		return nil, fmt.Errorf("connectproxy: provider upstream: %w", err)
 	}
 	return newHandler(map[string]*url.URL{
-		modelservicev1connect.ModelServiceListModelDefinitionsProcedure: modelTarget,
-		providerservicev1connect.ProviderServiceListVendorsProcedure:    providerTarget,
+		modelservicev1connect.ModelServiceListModelsProcedure:        modelTarget,
+		providerservicev1connect.ProviderServiceListVendorsProcedure: providerTarget,
 	}), nil
 }
 

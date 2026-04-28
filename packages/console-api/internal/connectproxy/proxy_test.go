@@ -9,9 +9,9 @@ import (
 	"code-code.internal/go-contract/platform/provider/v1/providerservicev1connect"
 )
 
-func TestModelServiceProxyForwardsListModelDefinitions(t *testing.T) {
+func TestModelServiceProxyForwardsListModels(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got, want := r.URL.Path, modelservicev1connect.ModelServiceListModelDefinitionsProcedure; got != want {
+		if got, want := r.URL.Path, modelservicev1connect.ModelServiceListModelsProcedure; got != want {
 			t.Fatalf("upstream path = %q, want %q", got, want)
 		}
 		if got, want := r.URL.RawQuery, "pageSize=20"; got != want {
@@ -26,7 +26,7 @@ func TestModelServiceProxyForwardsListModelDefinitions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	request := httptest.NewRequest(http.MethodPost, ConsolePathPrefix+modelservicev1connect.ModelServiceListModelDefinitionsProcedure+"?pageSize=20", nil)
+	request := httptest.NewRequest(http.MethodPost, ConsolePathPrefix+modelservicev1connect.ModelServiceListModelsProcedure+"?pageSize=20", nil)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 

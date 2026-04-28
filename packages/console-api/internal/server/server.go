@@ -65,6 +65,10 @@ func New(config Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	providerService, err := providers.NewHostTelemetryProviderService(config.Platform.Providers(), promQueryClient)
+	if err != nil {
+		return nil, err
+	}
 	sessionClient, err := config.Platform.AgentSessionManagementClient()
 	if err != nil {
 		return nil, err
@@ -104,7 +108,7 @@ func New(config Config) (*Server, error) {
 	mcpservers.RegisterHandlers(mux, config.Platform.MCPServers())
 	skills.RegisterHandlers(mux, config.Platform.Skills())
 	rules.RegisterHandlers(mux, config.Platform.Rules())
-	providers.RegisterHandlers(mux, config.Platform.Providers())
+	providers.RegisterHandlers(mux, providerService)
 	providers.RegisterObservabilityHandlers(mux, observabilityService)
 	egresspolicies.RegisterHandlers(mux, config.Platform.EgressPolicies())
 	oauthsessions.RegisterHandlers(mux, config.Platform.OAuthSessions())
