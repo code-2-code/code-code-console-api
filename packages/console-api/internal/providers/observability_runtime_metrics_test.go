@@ -40,8 +40,8 @@ func TestObservabilityServiceProviderIncludesRuntimeGaugeMetricsWithoutActiveQue
 	if len(runtimeMetrics[0].Rows) != 1 || runtimeMetrics[0].Rows[0].Value != 42 {
 		t.Fatalf("rows = %#v, want one row with value 42", runtimeMetrics[0].Rows)
 	}
-	if _, ok := runtimeMetrics[0].Rows[0].Labels["provider_surface_binding_id"]; ok {
-		t.Fatal("provider_surface_binding_id label should be removed")
+	if _, ok := runtimeMetrics[0].Rows[0].Labels["surface_id"]; ok {
+		t.Fatal("surface_id label should be removed")
 	}
 	if got, want := runtimeMetrics[0].Rows[0].Labels["cli_id"], "codex"; got != want {
 		t.Fatalf("cli_id label = %q, want %q", got, want)
@@ -115,10 +115,8 @@ type codexRuntimeMetricProviderListerStub struct{}
 func (codexRuntimeMetricProviderListerStub) ListProviders(context.Context) ([]*managementv1.ProviderView, error) {
 	return []*managementv1.ProviderView{{
 		ProviderId: "provider-openai",
-		Surfaces: []*managementv1.ProviderSurfaceBindingView{{
-			SurfaceId: "provider-openai",
-			Runtime:   testCLIProviderSurfaceRuntime("codex"),
-		}},
+		SurfaceId:  "provider-openai",
+		Runtime:    testCLIProviderSurfaceRuntime("codex"),
 	}}, nil
 }
 
@@ -201,7 +199,7 @@ func (s *codexRuntimeMetricPrometheusStub) QueryVector(_ context.Context, query 
 	switch {
 	case containsMetricQuery(query, "gen_ai_provider_cli_oauth_codex_primary_window_used_percent"):
 		return []promVectorSample{{
-			Metric: map[string]string{"provider_surface_binding_id": "provider-openai", "cli_id": "codex"},
+			Metric: map[string]string{"surface_id": "provider-openai", "cli_id": "codex"},
 			Value:  42,
 		}}, nil
 	case containsMetricQuery(query, refreshReadyMetric):

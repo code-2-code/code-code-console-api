@@ -5,20 +5,23 @@ import (
 	"net/http"
 	"time"
 
-	"code-code.internal/console-api/internal/agentprofiles"
 	"code-code.internal/console-api/internal/chats"
 	"code-code.internal/console-api/internal/connectproxy"
+	"code-code.internal/console-api/internal/crudhandler"
 	"code-code.internal/console-api/internal/egresspolicies"
 	"code-code.internal/console-api/internal/httpjson"
-	"code-code.internal/console-api/internal/mcpservers"
 	"code-code.internal/console-api/internal/oauthsessions"
 	"code-code.internal/console-api/internal/platformclient"
 	"code-code.internal/console-api/internal/providers"
 	"code-code.internal/console-api/internal/referencedata"
-	"code-code.internal/console-api/internal/rules"
-	"code-code.internal/console-api/internal/skills"
 	"code-code.internal/console-api/internal/templates"
+	agentprofilev1 "code-code.internal/go-contract/platform/agent_profile/v1"
+	managementv1 "code-code.internal/go-contract/platform/management/v1"
+	mcpv1 "code-code.internal/go-contract/platform/mcp/v1"
+	rulev1 "code-code.internal/go-contract/platform/rule/v1"
+	skillv1 "code-code.internal/go-contract/platform/skill/v1"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"google.golang.org/protobuf/proto"
 )
 
 // Config groups dependencies required to assemble the console API.
@@ -104,10 +107,7 @@ func New(config Config) (*Server, error) {
 		chats.NewGRPCRunOutputClient(sessionClient),
 		chatFacade,
 	)
-	agentprofiles.RegisterHandlers(mux, config.Platform.AgentProfiles())
-	mcpservers.RegisterHandlers(mux, config.Platform.MCPServers())
-	skills.RegisterHandlers(mux, config.Platform.Skills())
-	rules.RegisterHandlers(mux, config.Platform.Rules())
+	registerCRUDHandlers(mux, config.Platform)
 	providers.RegisterHandlers(mux, providerService)
 	providers.RegisterObservabilityHandlers(mux, observabilityService)
 	egresspolicies.RegisterHandlers(mux, config.Platform.EgressPolicies())
@@ -116,4 +116,27 @@ func New(config Config) (*Server, error) {
 	referencedata.RegisterCLIDefinitionHandlers(mux, config.Platform.CLIDefinitions())
 	referencedata.RegisterSupportResourceHandlers(mux, config.Platform.SupportResources())
 	return &Server{Handler: httpjson.WithCORS(mux)}, nil
+}
+
+func registerCRUDHandlers(mux *http.ServeMux, platform *platformclient.Client) {
+	crudhandler.Register(mux, platform.AgentProfiles(), crudhandler.Config[*managementv1.AgentProfileListItem, *agentprofilev1.AgentProfile, *managementv1.UpsertAgentProfileRequest]{
+		ResourceName: "agent-profiles",
+		WrapList:     func(items []*managementv1.AgentProfileListItem) proto.Message { return &managementv1.ListAgentProfilesResponse{Items: items} },
+		NewRequest:   func() *managementv1.UpsertAgentProfileRequest { return &managementv1.UpsertAgentProfileRequest{} },
+	})
+	crudhandler.Register(mux, platform.MCPServers(), crudhandler.Config[*managementv1.MCPServerListItem, *mcpv1.MCPServer, *managementv1.UpsertMCPServerRequest]{
+		ResourceName: "mcps",
+		WrapList:     func(items []*managementv1.MCPServerListItem) proto.Message { return &managementv1.ListMCPServersResponse{Items: items} },
+		NewRequest:   func() *managementv1.UpsertMCPServerRequest { return &managementv1.UpsertMCPServerRequest{} },
+	})
+	crudhandler.Register(mux, platform.Skills(), crudhandler.Config[*managementv1.SkillListItem, *skillv1.Skill, *managementv1.UpsertSkillRequest]{
+		ResourceName: "skills",
+		WrapList:     func(items []*managementv1.SkillListItem) proto.Message { return &managementv1.ListSkillsResponse{Items: items} },
+		NewRequest:   func() *managementv1.UpsertSkillRequest { return &managementv1.UpsertSkillRequest{} },
+	})
+	crudhandler.Register(mux, platform.Rules(), crudhandler.Config[*managementv1.RuleListItem, *rulev1.Rule, *managementv1.UpsertRuleRequest]{
+		ResourceName: "rules",
+		WrapList:     func(items []*managementv1.RuleListItem) proto.Message { return &managementv1.ListRulesResponse{Items: items} },
+		NewRequest:   func() *managementv1.UpsertRuleRequest { return &managementv1.UpsertRuleRequest{} },
+	})
 }

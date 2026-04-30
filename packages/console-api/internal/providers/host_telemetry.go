@@ -60,10 +60,6 @@ func (s *HostTelemetryProviderService) ListProviders(ctx context.Context) ([]*ma
 	return s.attachHostTelemetry(ctx, items), nil
 }
 
-func (s *HostTelemetryProviderService) ListProviderSurfaceBindings(ctx context.Context) ([]*managementv1.ProviderSurfaceBindingView, error) {
-	return s.delegate.ListProviderSurfaceBindings(ctx)
-}
-
 func (s *HostTelemetryProviderService) UpdateProvider(ctx context.Context, providerID string, request *managementv1.UpdateProviderRequest) (*managementv1.ProviderView, error) {
 	return s.delegate.UpdateProvider(ctx, providerID, request)
 }
@@ -78,18 +74,6 @@ func (s *HostTelemetryProviderService) UpdateProviderObservabilityAuthentication
 
 func (s *HostTelemetryProviderService) DeleteProvider(ctx context.Context, providerID string) error {
 	return s.delegate.DeleteProvider(ctx, providerID)
-}
-
-func (s *HostTelemetryProviderService) CreateProviderSurfaceBinding(ctx context.Context, request *managementv1.UpsertProviderSurfaceBindingRequest) (*managementv1.ProviderSurfaceBindingView, error) {
-	return s.delegate.CreateProviderSurfaceBinding(ctx, request)
-}
-
-func (s *HostTelemetryProviderService) UpdateProviderSurfaceBinding(ctx context.Context, surfaceID string, request *managementv1.UpsertProviderSurfaceBindingRequest) (*managementv1.ProviderSurfaceBindingView, error) {
-	return s.delegate.UpdateProviderSurfaceBinding(ctx, surfaceID, request)
-}
-
-func (s *HostTelemetryProviderService) DeleteProviderSurfaceBinding(ctx context.Context, surfaceID string) error {
-	return s.delegate.DeleteProviderSurfaceBinding(ctx, surfaceID)
 }
 
 func (s *HostTelemetryProviderService) Connect(ctx context.Context, request *managementv1.ConnectProviderRequest) (*managementv1.ConnectProviderResponse, error) {
@@ -120,13 +104,9 @@ func (s *HostTelemetryProviderService) attachHostTelemetry(ctx context.Context, 
 			continue
 		}
 		providerTelemetryByKey := map[string]*managementv1.ProviderHostTelemetry{}
-		for _, surface := range provider.GetSurfaces() {
-			target, ok := providerHostTelemetryTargetFromSurface(surface)
-			if !ok {
-				continue
-			}
+		target, ok := providerHostTelemetryTargetFromProvider(provider)
+		if ok {
 			telemetry := providerHostTelemetryView(target, points[target.key])
-			surface.HostTelemetry = cloneProviderHostTelemetry(telemetry)
 			providerTelemetryByKey[target.key] = telemetry
 		}
 		provider.HostTelemetry = sortedProviderHostTelemetry(providerTelemetryByKey)
@@ -137,11 +117,9 @@ func (s *HostTelemetryProviderService) attachHostTelemetry(ctx context.Context, 
 func providerHostTelemetryTargetsFromProviders(providers []*managementv1.ProviderView) map[string]providerHostTelemetryTarget {
 	targets := map[string]providerHostTelemetryTarget{}
 	for _, provider := range providers {
-		for _, surface := range provider.GetSurfaces() {
-			target, ok := providerHostTelemetryTargetFromSurface(surface)
-			if ok {
-				targets[target.key] = target
-			}
+		target, ok := providerHostTelemetryTargetFromProvider(provider)
+		if ok {
+			targets[target.key] = target
 		}
 	}
 	return targets
@@ -188,11 +166,11 @@ func providerHostTelemetryTargetFromMetric(metric map[string]string) (providerHo
 	return providerHostTelemetryTargetFromParts(scheme, host, port)
 }
 
-func providerHostTelemetryTargetFromSurface(surface *managementv1.ProviderSurfaceBindingView) (providerHostTelemetryTarget, bool) {
-	if surface == nil || surface.GetRuntime().GetApi() == nil {
+func providerHostTelemetryTargetFromProvider(provider *managementv1.ProviderView) (providerHostTelemetryTarget, bool) {
+	if provider == nil || provider.GetRuntime().GetApi() == nil {
 		return providerHostTelemetryTarget{}, false
 	}
-	return normalizeProviderHostTelemetryTarget(surface.GetRuntime().GetApi().GetBaseUrl())
+	return normalizeProviderHostTelemetryTarget(provider.GetRuntime().GetApi().GetBaseUrl())
 }
 
 func normalizeProviderHostTelemetryTarget(raw string) (providerHostTelemetryTarget, bool) {

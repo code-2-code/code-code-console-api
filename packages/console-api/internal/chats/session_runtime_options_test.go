@@ -102,8 +102,8 @@ func TestRegisterHandlersRejectsInvalidInlineRuntimeSelection(t *testing.T) {
 
 func newTestSessionRuntimeOptionsService() sessionRuntimeOptionsService {
 	return NewSessionRuntimeOptionsService(
-		sessionRuntimeProviderSurfaceBindingStub{
-			items: []*managementv1.ProviderSurfaceBindingView{
+		sessionRuntimeProviderStub{
+			items: []*managementv1.ProviderView{
 				runtimeOptionInstance(
 					"openai-default",
 					"OpenAI Default",
@@ -155,7 +155,7 @@ func runtimeOptionInstance(
 	cliID string,
 	protocol apiprotocolv1.Protocol,
 	models []string,
-) *managementv1.ProviderSurfaceBindingView {
+) *managementv1.ProviderView {
 	entries := make([]*providerv1.ProviderModelCatalogEntry, 0, len(models))
 	for _, modelID := range models {
 		entries = append(entries, &providerv1.ProviderModelCatalogEntry{ProviderModelId: modelID})
@@ -173,20 +173,20 @@ func runtimeOptionInstance(
 			Api: &providerv1.ProviderAPISurfaceRuntime{Protocol: protocol},
 		}
 	}
-	return &managementv1.ProviderSurfaceBindingView{
-		SurfaceId:   instanceID,
-		DisplayName: label,
-		VendorId:    "vendor-" + instanceID,
-		ProviderId:  "provider-" + instanceID,
-		Runtime:     runtime,
+	return &managementv1.ProviderView{
+		SurfaceId:     instanceID,
+		DisplayName:   label,
+		ProviderId:    "provider-" + instanceID,
+		ProductInfoId: "vendor-" + instanceID,
+		Runtime:       runtime,
 	}
 }
 
-type sessionRuntimeProviderSurfaceBindingStub struct {
-	items []*managementv1.ProviderSurfaceBindingView
+type sessionRuntimeProviderStub struct {
+	items []*managementv1.ProviderView
 }
 
-func (s sessionRuntimeProviderSurfaceBindingStub) ListProviderSurfaceBindings(context.Context) ([]*managementv1.ProviderSurfaceBindingView, error) {
+func (s sessionRuntimeProviderStub) ListProviders(context.Context) ([]*managementv1.ProviderView, error) {
 	return s.items, nil
 }
 

@@ -6,6 +6,7 @@ import (
 	egressservicev1 "code-code.internal/go-contract/platform/egress/v1"
 	managementv1 "code-code.internal/go-contract/platform/management/v1"
 	oauthv1 "code-code.internal/go-contract/platform/oauth/v1"
+	orchestrationv1 "code-code.internal/go-contract/platform/orchestration/v1"
 	profileservicev1 "code-code.internal/go-contract/platform/profile/v1"
 	providerservicev1 "code-code.internal/go-contract/platform/provider/v1"
 	supportv1 "code-code.internal/go-contract/platform/support/v1"
@@ -15,41 +16,43 @@ import (
 )
 
 type Config struct {
-	SessionConn    grpc.ClientConnInterface
-	ChatConn       grpc.ClientConnInterface
-	ProviderConn   grpc.ClientConnInterface
-	CLIRuntimeConn grpc.ClientConnInterface
-	ProfileConn    grpc.ClientConnInterface
-	EgressConn     grpc.ClientConnInterface
-	AuthConn       grpc.ClientConnInterface
-	SupportConn    grpc.ClientConnInterface
+	SessionConn       grpc.ClientConnInterface
+	ChatConn          grpc.ClientConnInterface
+	ProviderConn      grpc.ClientConnInterface
+	OrchestrationConn grpc.ClientConnInterface
+	CLIRuntimeConn    grpc.ClientConnInterface
+	ProfileConn       grpc.ClientConnInterface
+	EgressConn        grpc.ClientConnInterface
+	AuthConn          grpc.ClientConnInterface
+	SupportConn       grpc.ClientConnInterface
 }
 
 // Client adapts platform gRPC upstreams to console domain services.
 type Client struct {
-	sessionManagement   managementv1.AgentSessionManagementServiceClient
-	chat                chatv1.ChatServiceClient
-	provider            providerservicev1.ProviderServiceClient
-	cliRuntime          cliruntimev1.CLIRuntimeServiceClient
-	profile             profileservicev1.ProfileServiceClient
-	egress              egressservicev1.EgressServiceClient
-	support             supportv1.SupportServiceClient
-	oauthSession        oauthv1.OAuthSessionServiceClient
-	oauthCallback       oauthv1.OAuthCallbackServiceClient
-	agentProfiles       AgentProfiles
-	mcpServers          MCPServers
-	skills              Skills
-	rules               Rules
-	providers           Providers
-	egressPolicies      EgressPolicies
-	templates           Templates
-	cliDefinitions      CLIDefinitions
-	cliRuntimes         CLIRuntimes
-	supportResources    SupportResources
-	agentSessions       AgentSessions
-	agentSessionActions AgentSessionActions
-	agentRuns           AgentRuns
-	oauthSessions       OAuthSessions
+	sessionManagement     managementv1.AgentSessionManagementServiceClient
+	chat                  chatv1.ChatServiceClient
+	provider              providerservicev1.ProviderServiceClient
+	providerOrchestration orchestrationv1.ProviderOrchestrationServiceClient
+	cliRuntime            cliruntimev1.CLIRuntimeServiceClient
+	profile               profileservicev1.ProfileServiceClient
+	egress                egressservicev1.EgressServiceClient
+	support               supportv1.SupportServiceClient
+	oauthSession          oauthv1.OAuthSessionServiceClient
+	oauthCallback         oauthv1.OAuthCallbackServiceClient
+	agentProfiles         AgentProfiles
+	mcpServers            MCPServers
+	skills                Skills
+	rules                 Rules
+	providers             Providers
+	egressPolicies        EgressPolicies
+	templates             Templates
+	cliDefinitions        CLIDefinitions
+	cliRuntimes           CLIRuntimes
+	supportResources      SupportResources
+	agentSessions         AgentSessions
+	agentSessionActions   AgentSessionActions
+	agentRuns             AgentRuns
+	oauthSessions         OAuthSessions
 }
 
 func New(config Config) (*Client, error) {
@@ -62,6 +65,9 @@ func New(config Config) (*Client, error) {
 	}
 	if config.ProviderConn != nil {
 		c.provider = providerservicev1.NewProviderServiceClient(config.ProviderConn)
+	}
+	if config.OrchestrationConn != nil {
+		c.providerOrchestration = orchestrationv1.NewProviderOrchestrationServiceClient(config.OrchestrationConn)
 	}
 	if config.CLIRuntimeConn != nil {
 		c.cliRuntime = cliruntimev1.NewCLIRuntimeServiceClient(config.CLIRuntimeConn)
@@ -115,6 +121,13 @@ func (c *Client) requireProvider() (providerservicev1.ProviderServiceClient, err
 		return nil, status.Error(codes.Unavailable, "provider upstream is not configured")
 	}
 	return c.provider, nil
+}
+
+func (c *Client) requireProviderOrchestration() (orchestrationv1.ProviderOrchestrationServiceClient, error) {
+	if c == nil || c.providerOrchestration == nil {
+		return nil, status.Error(codes.Unavailable, "provider orchestration upstream is not configured")
+	}
+	return c.providerOrchestration, nil
 }
 
 func (c *Client) requireCLIRuntime() (cliruntimev1.CLIRuntimeServiceClient, error) {

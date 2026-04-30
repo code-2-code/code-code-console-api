@@ -90,7 +90,7 @@ func (s *ObservabilityService) buildProviderItem(
 	view providerObservabilityView,
 ) (ProviderCLIObservabilityItem, error) {
 	item := buildProviderItemBase(subject)
-	if len(item.ProviderSurfaceBindingIDs) == 0 {
+	if len(item.SurfaceIDs) == 0 {
 		return item, nil
 	}
 	activeMatcher := promActiveDiscoveryMatcher(subject)
@@ -255,7 +255,7 @@ func (s *ObservabilityService) queryLatestCredentialHealth(
 	subject *cliSubject,
 	matcher string,
 	window string,
-) ([]ProviderSurfaceBindingValue, []ProviderSurfaceBindingTimestamp, error) {
+) ([]SurfaceValue, []SurfaceTimestamp, error) {
 	if subject == nil || strings.TrimSpace(subject.authUsableMetric) == "" || strings.TrimSpace(subject.credentialLastUsedMetric) == "" {
 		return nil, nil, nil
 	}
@@ -439,7 +439,7 @@ func buildSummaryCardBase(subject *cliSubject) ProviderCLIObservabilityCard {
 		DisplayName:   subject.displayName,
 		IconURL:       subject.iconURL,
 		ProviderCount: len(subject.providerIDs),
-		InstanceCount: len(subject.providerSurfaceBindingIDs),
+		InstanceCount: len(subject.surfaceIDs),
 	}
 }
 
@@ -448,18 +448,18 @@ func buildProviderItemBase(subject *cliSubject) ProviderCLIObservabilityItem {
 		return ProviderCLIObservabilityItem{}
 	}
 	return ProviderCLIObservabilityItem{
-		Owner:                     subject.owner,
-		CLIID:                     subject.cliID,
-		VendorID:                  subject.vendorID,
-		DisplayName:               subject.displayName,
-		IconURL:                   subject.iconURL,
-		ProviderSurfaceBindingIDs: subjectInstanceIDs(subject),
+		Owner:       subject.owner,
+		CLIID:       subject.cliID,
+		VendorID:    subject.vendorID,
+		DisplayName: subject.displayName,
+		IconURL:     subject.iconURL,
+		SurfaceIDs:  subjectInstanceIDs(subject),
 	}
 }
 
 func subjectInstanceIDs(subject *cliSubject) []string {
-	values := make([]string, 0, len(subject.providerSurfaceBindingIDs))
-	for instanceID := range subject.providerSurfaceBindingIDs {
+	values := make([]string, 0, len(subject.surfaceIDs))
+	for instanceID := range subject.surfaceIDs {
 		values = append(values, instanceID)
 	}
 	slices.Sort(values)
@@ -516,7 +516,7 @@ func (s *ObservabilityService) queryLatestActiveDiscoveryStatus(
 	subject *cliSubject,
 	activeMatcher string,
 	window string,
-) ([]ProviderSurfaceBindingTimestamp, []ProviderSurfaceBindingValue, []ProviderSurfaceBindingReason, []ProviderSurfaceBindingTimestamp, error) {
+) ([]SurfaceTimestamp, []SurfaceValue, []SurfaceReason, []SurfaceTimestamp, error) {
 	windowRange := durationRange(window)
 	lastRunSamples, err := s.prom.QueryVector(ctx, fmt.Sprintf(
 		`last_over_time(%s{%s}%s)`,
@@ -562,37 +562,37 @@ func (s *ObservabilityService) queryLatestActiveDiscoveryStatus(
 	outcomesBySeries := vectorSamplesBySeriesKey(outcomeSamples)
 	nextBySeries := vectorSamplesBySeriesKey(nextSamples)
 	reasonsByGroup := reasonSamplesByActiveDiscoveryGroup(reasonSamples)
-	runs := make([]ProviderSurfaceBindingTimestamp, 0, len(selectedRuns))
-	outcomes := make([]ProviderSurfaceBindingValue, 0, len(selectedRuns))
-	reasons := make([]ProviderSurfaceBindingReason, 0, len(selectedRuns))
-	nextAllowed := make([]ProviderSurfaceBindingTimestamp, 0, len(selectedRuns))
+	runs := make([]SurfaceTimestamp, 0, len(selectedRuns))
+	outcomes := make([]SurfaceValue, 0, len(selectedRuns))
+	reasons := make([]SurfaceReason, 0, len(selectedRuns))
+	nextAllowed := make([]SurfaceTimestamp, 0, len(selectedRuns))
 	for _, sample := range selectedRuns {
 		seriesKey := promSeriesKey(sample.Metric)
 		groupKey := activeDiscoveryGroupKey(sample.Metric)
-		providerSurfaceBindingID := strings.TrimSpace(sample.Metric["provider_surface_binding_id"])
-		runs = append(runs, ProviderSurfaceBindingTimestamp{
-			ProviderSurfaceBindingID: providerSurfaceBindingID,
-			Timestamp:                formatPromTimestamp(sample.Value),
+		surfaceID := strings.TrimSpace(sample.Metric["surface_id"])
+		runs = append(runs, SurfaceTimestamp{
+			SurfaceID: surfaceID,
+			Timestamp: formatPromTimestamp(sample.Value),
 		})
 		outcome, hasOutcome := outcomesBySeries[seriesKey]
 		if hasOutcome {
-			outcomes = append(outcomes, ProviderSurfaceBindingValue{
-				ProviderSurfaceBindingID: providerSurfaceBindingID,
-				Value:                    outcome.Value,
+			outcomes = append(outcomes, SurfaceValue{
+				SurfaceID: surfaceID,
+				Value:     outcome.Value,
 			})
 		}
 		if hasOutcome && activeProbeOutcomeHasReason(outcome.Value) {
 			if reason, ok := reasonsByGroup[groupKey]; ok {
-				reasons = append(reasons, ProviderSurfaceBindingReason{
-					ProviderSurfaceBindingID: providerSurfaceBindingID,
-					Reason:                   reason,
+				reasons = append(reasons, SurfaceReason{
+					SurfaceID: surfaceID,
+					Reason:    reason,
 				})
 			}
 		}
 		if next, ok := nextBySeries[seriesKey]; ok {
-			nextAllowed = append(nextAllowed, ProviderSurfaceBindingTimestamp{
-				ProviderSurfaceBindingID: providerSurfaceBindingID,
-				Timestamp:                formatPromTimestamp(next.Value),
+			nextAllowed = append(nextAllowed, SurfaceTimestamp{
+				SurfaceID: surfaceID,
+				Timestamp: formatPromTimestamp(next.Value),
 			})
 		}
 	}
@@ -612,7 +612,7 @@ func reasonSamplesByActiveDiscoveryGroup(samples []promVectorSample) map[string]
 	items := make(map[string]string, len(samples))
 	for _, sample := range samples {
 		reason := strings.TrimSpace(sample.Metric["reason"])
-		if reason == "" {
+		if reason == "" || sample.Value <= 0 || !providerObservabilityProbeReasonKnownLabel(reason) {
 			continue
 		}
 		items[activeDiscoveryGroupKey(sample.Metric)] = reason
@@ -640,7 +640,7 @@ func selectLatestProbeRunSamples(samples []promVectorSample) []promVectorSample 
 }
 
 func activeDiscoveryGroupKey(metric map[string]string) string {
-	if instanceID := strings.TrimSpace(metric["provider_surface_binding_id"]); instanceID != "" {
+	if instanceID := strings.TrimSpace(metric["surface_id"]); instanceID != "" {
 		return "instance:" + instanceID
 	}
 	if providerID := strings.TrimSpace(metric["provider_id"]); providerID != "" {
@@ -686,38 +686,38 @@ func probeLastOutcomeMetric(subject *cliSubject) string {
 	return cliProbeLastOutcomeMetric
 }
 
-func (s *ObservabilityService) queryInstanceReadiness(ctx context.Context, query string) ([]ProviderSurfaceBindingReadiness, error) {
+func (s *ObservabilityService) queryInstanceReadiness(ctx context.Context, query string) ([]SurfaceReadiness, error) {
 	samples, err := s.prom.QueryVector(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("consoleapi/providers: query instance readiness: %w", err)
 	}
-	items := make([]ProviderSurfaceBindingReadiness, 0, len(samples))
+	items := make([]SurfaceReadiness, 0, len(samples))
 	for _, sample := range samples {
-		items = append(items, ProviderSurfaceBindingReadiness{
-			ProviderSurfaceBindingID: strings.TrimSpace(sample.Metric["provider_surface_binding_id"]),
-			Value:                    sample.Value,
+		items = append(items, SurfaceReadiness{
+			SurfaceID: strings.TrimSpace(sample.Metric["surface_id"]),
+			Value:     sample.Value,
 		})
 	}
-	slices.SortFunc(items, func(left, right ProviderSurfaceBindingReadiness) int {
-		return strings.Compare(left.ProviderSurfaceBindingID, right.ProviderSurfaceBindingID)
+	slices.SortFunc(items, func(left, right SurfaceReadiness) int {
+		return strings.Compare(left.SurfaceID, right.SurfaceID)
 	})
 	return items, nil
 }
 
-func (s *ObservabilityService) queryInstanceValues(ctx context.Context, query string) ([]ProviderSurfaceBindingValue, error) {
+func (s *ObservabilityService) queryInstanceValues(ctx context.Context, query string) ([]SurfaceValue, error) {
 	samples, err := s.prom.QueryVector(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("consoleapi/providers: query instance values: %w", err)
 	}
-	items := make([]ProviderSurfaceBindingValue, 0, len(samples))
+	items := make([]SurfaceValue, 0, len(samples))
 	for _, sample := range samples {
-		items = append(items, ProviderSurfaceBindingValue{
-			ProviderSurfaceBindingID: strings.TrimSpace(sample.Metric["provider_surface_binding_id"]),
-			Value:                    sample.Value,
+		items = append(items, SurfaceValue{
+			SurfaceID: strings.TrimSpace(sample.Metric["surface_id"]),
+			Value:     sample.Value,
 		})
 	}
-	slices.SortFunc(items, func(left, right ProviderSurfaceBindingValue) int {
-		return strings.Compare(left.ProviderSurfaceBindingID, right.ProviderSurfaceBindingID)
+	slices.SortFunc(items, func(left, right SurfaceValue) int {
+		return strings.Compare(left.SurfaceID, right.SurfaceID)
 	})
 	return items, nil
 }
@@ -749,7 +749,7 @@ func copyMetricLabels(source map[string]string) map[string]string {
 		trimmedKey := strings.TrimSpace(key)
 		if trimmedKey == "" ||
 			trimmedKey == "__name__" ||
-			trimmedKey == "provider_surface_binding_id" ||
+			trimmedKey == "surface_id" ||
 			isRuntimeGaugeInfrastructureLabel(trimmedKey) {
 			continue
 		}

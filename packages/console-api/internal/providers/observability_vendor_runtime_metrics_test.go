@@ -61,12 +61,10 @@ type vendorRuntimeMetricProviderListerStub struct{}
 
 func (vendorRuntimeMetricProviderListerStub) ListProviders(context.Context) ([]*managementv1.ProviderView, error) {
 	return []*managementv1.ProviderView{{
-		ProviderId: "provider-minimax",
-		Surfaces: []*managementv1.ProviderSurfaceBindingView{{
-			SurfaceId: "provider-minimax",
-			VendorId:  "minimax",
-			Runtime:   testAPIProviderSurfaceRuntime(),
-		}},
+		ProviderId:    "provider-minimax",
+		SurfaceId:     "provider-minimax",
+		ProductInfoId: "minimax",
+		Runtime:       testAPIProviderSurfaceRuntime(),
 	}}, nil
 }
 

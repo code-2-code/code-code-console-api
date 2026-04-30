@@ -16,7 +16,7 @@ func buildRuntimeCatalog(
 	clis []*supportv1.CLI,
 	cliDefinitions []*managementv1.CLIDefinitionView,
 	availableImages []*cliruntimev1.CLIRuntimeImage,
-	providerSurfaces []*managementv1.ProviderSurfaceBindingView,
+	providerSurfaces []*managementv1.ProviderView,
 ) *runtimeCatalog {
 	definitionByID := make(map[string]*managementv1.CLIDefinitionView, len(cliDefinitions))
 	for _, item := range cliDefinitions {
@@ -63,7 +63,7 @@ func buildRuntimeCatalog(
 func runtimeProviderSurfaces(
 	providerID string,
 	cli *supportv1.CLI,
-	providerSurfaces []*managementv1.ProviderSurfaceBindingView,
+	providerSurfaces []*managementv1.ProviderView,
 ) ([]sessionRuntimeSurfaceOption, map[string]runtimeSurfaceCatalog) {
 	supportedProtocols := runtimeSupportedProtocols(cli)
 	items := make([]sessionRuntimeSurfaceOption, 0, len(providerSurfaces))
@@ -154,7 +154,7 @@ func runtimeSupportedProtocols(cli *supportv1.CLI) map[int32]struct{} {
 func matchesRuntimeProvider(
 	providerID string,
 	supportedProtocols map[int32]struct{},
-	surface *managementv1.ProviderSurfaceBindingView,
+	surface *managementv1.ProviderView,
 ) bool {
 	runtimeOwnerID := providerv1.RuntimeCLIID(surface.GetRuntime())
 	if runtimeOwnerID != "" {
@@ -174,10 +174,7 @@ func runtimeProviderLabel(item *supportv1.CLI) string {
 	return strings.TrimSpace(item.GetCliId())
 }
 
-func runtimeSurfaceLabel(item *managementv1.ProviderSurfaceBindingView) string {
-	if label := strings.TrimSpace(item.GetProviderDisplayName()); label != "" {
-		return label
-	}
+func runtimeSurfaceLabel(item *managementv1.ProviderView) string {
 	if label := strings.TrimSpace(item.GetRuntime().GetDisplayName()); label != "" {
 		return label
 	}
@@ -187,7 +184,7 @@ func runtimeSurfaceLabel(item *managementv1.ProviderSurfaceBindingView) string {
 	return strings.TrimSpace(item.GetSurfaceId())
 }
 
-func runtimeSurfaceModels(surface *managementv1.ProviderSurfaceBindingView) []string {
+func runtimeSurfaceModels(surface *managementv1.ProviderView) []string {
 	values := make([]string, 0, len(surface.GetRuntime().GetCatalog().GetModels())+1)
 	seen := map[string]struct{}{}
 	for _, item := range surface.GetRuntime().GetCatalog().GetModels() {
@@ -207,7 +204,7 @@ func runtimeSurfaceModels(surface *managementv1.ProviderSurfaceBindingView) []st
 	return values
 }
 
-func runtimeRefForSurface(surface *managementv1.ProviderSurfaceBindingView) *providerv1.ProviderRuntimeRef {
+func runtimeRefForSurface(surface *managementv1.ProviderView) *providerv1.ProviderRuntimeRef {
 	if surface == nil || surface.GetRuntime() == nil {
 		return nil
 	}

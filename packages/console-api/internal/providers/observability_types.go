@@ -49,29 +49,29 @@ type ProviderObservabilityResponse struct {
 }
 
 type ProviderCLIObservabilityItem struct {
-	Owner                     string                            `json:"owner"`
-	CLIID                     string                            `json:"cliId,omitempty"`
-	VendorID                  string                            `json:"vendorId,omitempty"`
-	DisplayName               string                            `json:"displayName"`
-	IconURL                   string                            `json:"iconUrl"`
-	ProviderSurfaceBindingIDs []string                          `json:"providerSurfaceBindingIds"`
-	ProbeOutcomes             []ProviderLabelValue              `json:"probeOutcomes,omitempty"`
-	ProbeOutcomeSeries        []ProviderMetricSeries            `json:"probeOutcomeSeries,omitempty"`
-	RefreshAttempts           []ProviderLabelValue              `json:"refreshAttempts,omitempty"`
-	RefreshAttemptSeries      []ProviderMetricSeries            `json:"refreshAttemptSeries,omitempty"`
-	RuntimeRequests           []ProviderLabelValue              `json:"runtimeRequests,omitempty"`
-	RuntimeRequestSeries      []ProviderMetricSeries            `json:"runtimeRequestSeries,omitempty"`
-	RuntimeRateLimits         []ProviderLabelValue              `json:"runtimeRateLimits,omitempty"`
-	RuntimeRateLimitSeries    []ProviderMetricSeries            `json:"runtimeRateLimitSeries,omitempty"`
-	RuntimeMetrics            []ProviderRuntimeMetricRows       `json:"runtimeMetrics,omitempty"`
-	LastProbeRun              []ProviderSurfaceBindingTimestamp `json:"lastProbeRun,omitempty"`
-	LastProbeOutcome          []ProviderSurfaceBindingValue     `json:"lastProbeOutcome,omitempty"`
-	LastProbeReason           []ProviderSurfaceBindingReason    `json:"lastProbeReason,omitempty"`
-	NextProbeAllowed          []ProviderSurfaceBindingTimestamp `json:"nextProbeAllowed,omitempty"`
-	AuthUsable                []ProviderSurfaceBindingValue     `json:"authUsable,omitempty"`
-	CredentialLastUsed        []ProviderSurfaceBindingTimestamp `json:"credentialLastUsed,omitempty"`
-	RefreshReady              []ProviderSurfaceBindingReadiness `json:"refreshReady,omitempty"`
-	LastRuntimeSeen           []ProviderSurfaceBindingTimestamp `json:"lastRuntimeSeen,omitempty"`
+	Owner                  string                      `json:"owner"`
+	CLIID                  string                      `json:"cliId,omitempty"`
+	VendorID               string                      `json:"vendorId,omitempty"`
+	DisplayName            string                      `json:"displayName"`
+	IconURL                string                      `json:"iconUrl"`
+	SurfaceIDs             []string                    `json:"surfaceIds"`
+	ProbeOutcomes          []ProviderLabelValue        `json:"probeOutcomes,omitempty"`
+	ProbeOutcomeSeries     []ProviderMetricSeries      `json:"probeOutcomeSeries,omitempty"`
+	RefreshAttempts        []ProviderLabelValue        `json:"refreshAttempts,omitempty"`
+	RefreshAttemptSeries   []ProviderMetricSeries      `json:"refreshAttemptSeries,omitempty"`
+	RuntimeRequests        []ProviderLabelValue        `json:"runtimeRequests,omitempty"`
+	RuntimeRequestSeries   []ProviderMetricSeries      `json:"runtimeRequestSeries,omitempty"`
+	RuntimeRateLimits      []ProviderLabelValue        `json:"runtimeRateLimits,omitempty"`
+	RuntimeRateLimitSeries []ProviderMetricSeries      `json:"runtimeRateLimitSeries,omitempty"`
+	RuntimeMetrics         []ProviderRuntimeMetricRows `json:"runtimeMetrics,omitempty"`
+	LastProbeRun           []SurfaceTimestamp          `json:"lastProbeRun,omitempty"`
+	LastProbeOutcome       []SurfaceValue              `json:"lastProbeOutcome,omitempty"`
+	LastProbeReason        []SurfaceReason             `json:"lastProbeReason,omitempty"`
+	NextProbeAllowed       []SurfaceTimestamp          `json:"nextProbeAllowed,omitempty"`
+	AuthUsable             []SurfaceValue              `json:"authUsable,omitempty"`
+	CredentialLastUsed     []SurfaceTimestamp          `json:"credentialLastUsed,omitempty"`
+	RefreshReady           []SurfaceReadiness          `json:"refreshReady,omitempty"`
+	LastRuntimeSeen        []SurfaceTimestamp          `json:"lastRuntimeSeen,omitempty"`
 }
 
 type ProviderLabelValue struct {
@@ -79,24 +79,24 @@ type ProviderLabelValue struct {
 	Value float64 `json:"value"`
 }
 
-type ProviderSurfaceBindingTimestamp struct {
-	ProviderSurfaceBindingID string `json:"providerSurfaceBindingId,omitempty"`
-	Timestamp                string `json:"timestamp"`
+type SurfaceTimestamp struct {
+	SurfaceID string `json:"surfaceId,omitempty"`
+	Timestamp string `json:"timestamp"`
 }
 
-type ProviderSurfaceBindingValue struct {
-	ProviderSurfaceBindingID string  `json:"providerSurfaceBindingId,omitempty"`
-	Value                    float64 `json:"value"`
+type SurfaceValue struct {
+	SurfaceID string  `json:"surfaceId,omitempty"`
+	Value     float64 `json:"value"`
 }
 
-type ProviderSurfaceBindingReason struct {
-	ProviderSurfaceBindingID string `json:"providerSurfaceBindingId,omitempty"`
-	Reason                   string `json:"reason"`
+type SurfaceReason struct {
+	SurfaceID string `json:"surfaceId,omitempty"`
+	Reason    string `json:"reason"`
 }
 
-type ProviderSurfaceBindingReadiness struct {
-	ProviderSurfaceBindingID string  `json:"providerSurfaceBindingId,omitempty"`
-	Value                    float64 `json:"value"`
+type SurfaceReadiness struct {
+	SurfaceID string  `json:"surfaceId,omitempty"`
+	Value     float64 `json:"value"`
 }
 
 type ProviderMetricRow struct {

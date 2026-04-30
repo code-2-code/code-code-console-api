@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	managementv1 "code-code.internal/go-contract/platform/management/v1"
+	providerservicev1 "code-code.internal/go-contract/platform/provider/v1"
 )
 
 type providerObservabilityProber interface {
@@ -40,7 +41,7 @@ func (s *ObservabilityService) ProbeAll(ctx context.Context) (*ProviderObservabi
 		TriggeredCount: len(targets),
 		Message:        strings.TrimSpace(response.GetMessage()),
 		Results: []ProviderObservabilityProbeState{{
-			Outcome: managementv1.ProviderOAuthObservabilityProbeOutcome_PROVIDER_O_AUTH_OBSERVABILITY_PROBE_OUTCOME_UNSPECIFIED.String(),
+			Outcome: providerservicev1.ProviderOAuthObservabilityProbeOutcome_PROVIDER_O_AUTH_OBSERVABILITY_PROBE_OUTCOME_UNSPECIFIED.String(),
 			Message: strings.TrimSpace(response.GetMessage()),
 		}},
 	}, nil
@@ -66,7 +67,7 @@ func (s *ObservabilityService) ProbeProviders(ctx context.Context, providerIDs [
 		WorkflowID:     strings.TrimSpace(response.GetWorkflowId()),
 		Message:        strings.TrimSpace(response.GetMessage()),
 		Results: []ProviderObservabilityProbeState{{
-			Outcome: managementv1.ProviderOAuthObservabilityProbeOutcome_PROVIDER_O_AUTH_OBSERVABILITY_PROBE_OUTCOME_UNSPECIFIED.String(),
+			Outcome: providerservicev1.ProviderOAuthObservabilityProbeOutcome_PROVIDER_O_AUTH_OBSERVABILITY_PROBE_OUTCOME_UNSPECIFIED.String(),
 			Message: strings.TrimSpace(response.GetMessage()),
 		}},
 	}, nil
@@ -106,22 +107,20 @@ func sortedProviderProbeTargets(providers []*managementv1.ProviderView) []provid
 			continue
 		}
 		providerID := strings.TrimSpace(provider.GetProviderId())
-		if providerID == "" || len(provider.GetSurfaces()) == 0 {
+		if providerID == "" || strings.TrimSpace(provider.GetSurfaceId()) == "" {
 			continue
 		}
-		for _, surface := range provider.GetSurfaces() {
-			owner := providerSurfaceBindingOwner(surface)
-			if owner.kind == "" || owner.id == "" {
-				continue
-			}
-			target := providerProbeTarget{providerID: providerID}
-			key := providerProbeTargetKey(target)
-			if current, ok := targetByKey[key]; ok {
-				targetByKey[key] = mergeProviderProbeTarget(current, target)
-				continue
-			}
-			targetByKey[key] = target
+		owner := providerSurfaceOwnerFromProvider(provider)
+		if owner.kind == "" || owner.id == "" {
+			continue
 		}
+		target := providerProbeTarget{providerID: providerID}
+		key := providerProbeTargetKey(target)
+		if current, ok := targetByKey[key]; ok {
+			targetByKey[key] = mergeProviderProbeTarget(current, target)
+			continue
+		}
+		targetByKey[key] = target
 	}
 	targets := make([]providerProbeTarget, 0, len(targetByKey))
 	for _, target := range targetByKey {

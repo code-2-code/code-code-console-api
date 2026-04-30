@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -39,7 +39,7 @@ func main() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := telemetryShutdown(shutdownCtx); err != nil {
-			log.Printf("shutdown telemetry failed: %v", err)
+			slog.Error("shutdown telemetry failed", "error", err)
 		}
 	}()
 
@@ -51,7 +51,7 @@ func main() {
 	must(err)
 	defer func() {
 		if err := providerConn.Close(); err != nil {
-			log.Printf("close provider connection failed: %v", err)
+			slog.Error("close provider connection failed", "error", err)
 		}
 	}()
 
@@ -63,7 +63,7 @@ func main() {
 	must(err)
 	defer func() {
 		if err := cliRuntimeConn.Close(); err != nil {
-			log.Printf("close cli runtime connection failed: %v", err)
+			slog.Error("close cli runtime connection failed", "error", err)
 		}
 	}()
 
@@ -75,7 +75,7 @@ func main() {
 	must(err)
 	defer func() {
 		if err := sessionConn.Close(); err != nil {
-			log.Printf("close session connection failed: %v", err)
+			slog.Error("close session connection failed", "error", err)
 		}
 	}()
 	supportConn, err := grpc.NewClient(
@@ -86,7 +86,7 @@ func main() {
 	must(err)
 	defer func() {
 		if err := supportConn.Close(); err != nil {
-			log.Printf("close support connection failed: %v", err)
+			slog.Error("close support connection failed", "error", err)
 		}
 	}()
 
@@ -135,14 +135,19 @@ func main() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		<-sigCh
-		log.Println("shutting down platform-chat-service...")
+		slog.Info("shutting down platform-chat-service")
 		healthServer.SetServingStatus("", healthv1.HealthCheckResponse_NOT_SERVING)
 		healthServer.SetServingStatus(managementv1.AgentSessionManagementService_ServiceDesc.ServiceName, healthv1.HealthCheckResponse_NOT_SERVING)
 		healthServer.SetServingStatus(chatv1.ChatService_ServiceDesc.ServiceName, healthv1.HealthCheckResponse_NOT_SERVING)
 		grpcServer.GracefulStop()
 	}()
 
-	log.Printf("platform-chat-service listening on %s (provider=%s cli_runtime=%s session=%s support=%s)", addr, providerAddr, cliRuntimeAddr, sessionAddr, supportAddr)
+	slog.Info("platform-chat-service listening",
+		"addr", addr,
+		"provider", providerAddr,
+		"cli_runtime", cliRuntimeAddr,
+		"session", sessionAddr,
+		"support", supportAddr)
 	if err := grpcServer.Serve(listener); err != nil {
 		must(err)
 	}
@@ -168,6 +173,7 @@ func firstEnv(keys ...string) string {
 
 func must(err error) {
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("fatal error", "error", err)
+		os.Exit(1)
 	}
 }

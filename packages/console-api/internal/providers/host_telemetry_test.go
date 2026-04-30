@@ -20,10 +20,8 @@ func TestHostTelemetryProviderServiceListProvidersQueriesOnceAndMatchesByHost(t 
 	service, err := NewHostTelemetryProviderService(hostTelemetryProviderStub{
 		items: []*managementv1.ProviderView{{
 			ProviderId: "provider-openai",
-			Surfaces: []*managementv1.ProviderSurfaceBindingView{{
-				SurfaceId: "openai-api",
-				Runtime:   hostTelemetryAPIRuntime("https://api.openai.com/v1"),
-			}},
+			SurfaceId:  "openai-api",
+			Runtime:    hostTelemetryAPIRuntime("https://api.openai.com/v1"),
 		}},
 	}, prom)
 	if err != nil {
@@ -40,7 +38,7 @@ func TestHostTelemetryProviderServiceListProvidersQueriesOnceAndMatchesByHost(t 
 	if got, want := prom.lastQuery, providerHostTelemetryQuery; got != want {
 		t.Fatalf("lastQuery = %q, want %q", got, want)
 	}
-	telemetry := items[0].GetSurfaces()[0].GetHostTelemetry()
+	telemetry := items[0].GetHostTelemetry()[0]
 	if telemetry.GetAvailability() != managementv1.ProviderHostTelemetryAvailability_PROVIDER_HOST_TELEMETRY_AVAILABILITY_REACHABLE {
 		t.Fatalf("availability = %v, want reachable", telemetry.GetAvailability())
 	}
@@ -62,10 +60,8 @@ func TestHostTelemetryProviderServiceListProvidersReturnsUnknownWithoutSample(t 
 	service, err := NewHostTelemetryProviderService(hostTelemetryProviderStub{
 		items: []*managementv1.ProviderView{{
 			ProviderId: "provider-custom",
-			Surfaces: []*managementv1.ProviderSurfaceBindingView{{
-				SurfaceId: "custom-api",
-				Runtime:   hostTelemetryAPIRuntime("https://custom.example.test/v1"),
-			}},
+			SurfaceId:  "custom-api",
+			Runtime:    hostTelemetryAPIRuntime("https://custom.example.test/v1"),
 		}},
 	}, &hostTelemetryPrometheusStub{})
 	if err != nil {
@@ -76,7 +72,7 @@ func TestHostTelemetryProviderServiceListProvidersReturnsUnknownWithoutSample(t 
 	if err != nil {
 		t.Fatalf("ListProviders() error = %v", err)
 	}
-	telemetry := items[0].GetSurfaces()[0].GetHostTelemetry()
+	telemetry := items[0].GetHostTelemetry()[0]
 	if telemetry.GetAvailability() != managementv1.ProviderHostTelemetryAvailability_PROVIDER_HOST_TELEMETRY_AVAILABILITY_UNKNOWN {
 		t.Fatalf("availability = %v, want unknown", telemetry.GetAvailability())
 	}
@@ -97,10 +93,6 @@ func (s hostTelemetryProviderStub) ListProviders(context.Context) ([]*management
 	return s.items, nil
 }
 
-func (s hostTelemetryProviderStub) ListProviderSurfaceBindings(context.Context) ([]*managementv1.ProviderSurfaceBindingView, error) {
-	return nil, nil
-}
-
 func (s hostTelemetryProviderStub) UpdateProvider(context.Context, string, *managementv1.UpdateProviderRequest) (*managementv1.ProviderView, error) {
 	return nil, nil
 }
@@ -114,18 +106,6 @@ func (s hostTelemetryProviderStub) UpdateProviderObservabilityAuthentication(con
 }
 
 func (s hostTelemetryProviderStub) DeleteProvider(context.Context, string) error { return nil }
-
-func (s hostTelemetryProviderStub) CreateProviderSurfaceBinding(context.Context, *managementv1.UpsertProviderSurfaceBindingRequest) (*managementv1.ProviderSurfaceBindingView, error) {
-	return nil, nil
-}
-
-func (s hostTelemetryProviderStub) UpdateProviderSurfaceBinding(context.Context, string, *managementv1.UpsertProviderSurfaceBindingRequest) (*managementv1.ProviderSurfaceBindingView, error) {
-	return nil, nil
-}
-
-func (s hostTelemetryProviderStub) DeleteProviderSurfaceBinding(context.Context, string) error {
-	return nil
-}
 
 func (s hostTelemetryProviderStub) Connect(context.Context, *managementv1.ConnectProviderRequest) (*managementv1.ConnectProviderResponse, error) {
 	return nil, nil

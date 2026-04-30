@@ -6,7 +6,6 @@ import (
 	managementv1 "code-code.internal/go-contract/platform/management/v1"
 	providerservicev1 "code-code.internal/go-contract/platform/provider/v1"
 	supportv1 "code-code.internal/go-contract/platform/support/v1"
-	providerv1 "code-code.internal/go-contract/provider/v1"
 )
 
 func (t *Templates) List(ctx context.Context) ([]*managementv1.TemplateView, error) {
@@ -80,18 +79,6 @@ func (s *SupportResources) ListCLIs(ctx context.Context) ([]*supportv1.CLI, erro
 		return nil, err
 	}
 	response, err := client.ListCLIs(ctx, &supportv1.ListCLIsRequest{})
-	if err != nil {
-		return nil, err
-	}
-	return response.GetItems(), nil
-}
-
-func (s *SupportResources) ListProviderSurfaces(ctx context.Context) ([]*providerv1.ProviderSurface, error) {
-	client, err := s.client.requireSupport()
-	if err != nil {
-		return nil, err
-	}
-	response, err := client.ListProviderSurfaces(ctx, &supportv1.ListProviderSurfacesRequest{})
 	if err != nil {
 		return nil, err
 	}

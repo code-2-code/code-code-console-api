@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -23,6 +23,7 @@ func main() {
 	modelConnectBaseURL := envOrDefault("CONSOLE_API_MODEL_CONNECT_BASE_URL", "http://platform-model-service:8080")
 	providerConnectBaseURL := envOrDefault("CONSOLE_API_PROVIDER_CONNECT_BASE_URL", "http://platform-provider-service:8080")
 	providerAddr := envOrDefault("CONSOLE_API_PROVIDER_GRPC_ADDR", "platform-provider-service:8081")
+	orchestrationAddr := envOrDefault("CONSOLE_API_PROVIDER_ORCHESTRATION_GRPC_ADDR", "platform-provider-orchestration-service:8081")
 	profileAddr := envOrDefault("CONSOLE_API_PROFILE_GRPC_ADDR", "platform-profile-service:8081")
 	egressAddr := envOrDefault("CONSOLE_API_EGRESS_GRPC_ADDR", "platform-egress-service.code-code-net.svc.cluster.local:8081")
 	authAddr := envOrDefault("CONSOLE_API_AUTH_GRPC_ADDR", "platform-auth-service:8081")
@@ -36,7 +37,7 @@ func main() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := telemetryShutdown(shutdownCtx); err != nil {
-			log.Printf("shutdown telemetry failed: %v", err)
+			slog.Error("shutdown telemetry failed", "error", err)
 		}
 	}()
 
@@ -48,7 +49,7 @@ func main() {
 	must(err)
 	defer func() {
 		if err := providerConn.Close(); err != nil {
-			log.Printf("close provider connection failed: %v", err)
+			slog.Error("close provider connection failed", "error", err)
 		}
 	}()
 	profileConn, err := grpc.NewClient(
@@ -59,7 +60,18 @@ func main() {
 	must(err)
 	defer func() {
 		if err := profileConn.Close(); err != nil {
-			log.Printf("close profile connection failed: %v", err)
+			slog.Error("close profile connection failed", "error", err)
+		}
+	}()
+	orchestrationConn, err := grpc.NewClient(
+		orchestrationAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+	)
+	must(err)
+	defer func() {
+		if err := orchestrationConn.Close(); err != nil {
+			slog.Error("close provider orchestration connection failed", "error", err)
 		}
 	}()
 	egressConn, err := grpc.NewClient(
@@ -70,7 +82,7 @@ func main() {
 	must(err)
 	defer func() {
 		if err := egressConn.Close(); err != nil {
-			log.Printf("close egress connection failed: %v", err)
+			slog.Error("close egress connection failed", "error", err)
 		}
 	}()
 	authConn, err := grpc.NewClient(
@@ -81,7 +93,7 @@ func main() {
 	must(err)
 	defer func() {
 		if err := authConn.Close(); err != nil {
-			log.Printf("close auth connection failed: %v", err)
+			slog.Error("close auth connection failed", "error", err)
 		}
 	}()
 	chatConn, err := grpc.NewClient(
@@ -92,7 +104,7 @@ func main() {
 	must(err)
 	defer func() {
 		if err := chatConn.Close(); err != nil {
-			log.Printf("close chat connection failed: %v", err)
+			slog.Error("close chat connection failed", "error", err)
 		}
 	}()
 	supportConn, err := grpc.NewClient(
@@ -103,18 +115,19 @@ func main() {
 	must(err)
 	defer func() {
 		if err := supportConn.Close(); err != nil {
-			log.Printf("close support connection failed: %v", err)
+			slog.Error("close support connection failed", "error", err)
 		}
 	}()
 
 	platformClient, err := platformclient.New(platformclient.Config{
-		SessionConn:  chatConn,
-		ChatConn:     chatConn,
-		ProviderConn: providerConn,
-		ProfileConn:  profileConn,
-		EgressConn:   egressConn,
-		AuthConn:     authConn,
-		SupportConn:  supportConn,
+		SessionConn:       chatConn,
+		ChatConn:          chatConn,
+		ProviderConn:      providerConn,
+		OrchestrationConn: orchestrationConn,
+		ProfileConn:       profileConn,
+		EgressConn:        egressConn,
+		AuthConn:          authConn,
+		SupportConn:       supportConn,
 	})
 	must(err)
 
@@ -139,15 +152,25 @@ func main() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		<-sigCh
-		log.Println("shutting down console-api...")
+		slog.Info("shutting down console-api")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := apiServer.Shutdown(shutdownCtx); err != nil {
-			log.Printf("console-api shutdown failed: %v", err)
+			slog.Error("console-api shutdown failed", "error", err)
 		}
 	}()
 
-	log.Printf("console-api listening on %s (model_connect=%s, provider_connect=%s, provider=%s, profile=%s, egress=%s, auth=%s, chat=%s, support=%s)", addr, modelConnectBaseURL, providerConnectBaseURL, providerAddr, profileAddr, egressAddr, authAddr, chatAddr, supportAddr)
+	slog.Info("console-api listening",
+		"addr", addr,
+		"model_connect", modelConnectBaseURL,
+		"provider_connect", providerConnectBaseURL,
+		"provider", providerAddr,
+		"provider_orchestration", orchestrationAddr,
+		"profile", profileAddr,
+		"egress", egressAddr,
+		"auth", authAddr,
+		"chat", chatAddr,
+		"support", supportAddr)
 	if err := apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		must(err)
 	}
@@ -163,6 +186,7 @@ func envOrDefault(key, fallback string) string {
 
 func must(err error) {
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("fatal error", "error", err)
+		os.Exit(1)
 	}
 }

@@ -66,24 +66,24 @@ type ObservabilityServiceConfig struct {
 }
 
 type cliSubject struct {
-	owner                     string
-	ownerID                   string
-	cliID                     string
-	vendorID                  string
-	matcherLabel              string
-	probeRunsMetric           string
-	probeLastRunMetric        string
-	probeLastReasonMetric     string
-	probeNextAllowMetric      string
-	authUsableMetric          string
-	credentialLastUsedMetric  string
-	displayName               string
-	iconURL                   string
-	providerIDs               map[string]struct{}
-	providerSurfaceBindingIDs map[string]struct{}
-	metricNames               map[string]struct{}
-	metricDescriptors         map[string]runtimeMetricDescriptor
-	supportsActiveQuery       bool
+	owner                    string
+	ownerID                  string
+	cliID                    string
+	vendorID                 string
+	matcherLabel             string
+	probeRunsMetric          string
+	probeLastRunMetric       string
+	probeLastReasonMetric    string
+	probeNextAllowMetric     string
+	authUsableMetric         string
+	credentialLastUsedMetric string
+	displayName              string
+	iconURL                  string
+	providerIDs              map[string]struct{}
+	surfaceIDs               map[string]struct{}
+	metricNames              map[string]struct{}
+	metricDescriptors        map[string]runtimeMetricDescriptor
+	supportsActiveQuery      bool
 }
 
 type providerSurfaceOwner struct {
@@ -213,39 +213,37 @@ func (s *ObservabilityService) buildSubjects(ctx context.Context, providerID str
 		if providerID != "" && currentProviderID != providerID {
 			continue
 		}
-		for _, surface := range provider.GetSurfaces() {
-			instanceID := strings.TrimSpace(surface.GetSurfaceId())
-			if instanceID == "" {
-				continue
+		instanceID := strings.TrimSpace(provider.GetSurfaceId())
+		if instanceID == "" {
+			continue
+		}
+		owner := providerSurfaceOwnerFromProvider(provider)
+		if owner.id == "" {
+			continue
+		}
+		switch owner.kind {
+		case ownerKindCLI:
+			key := owner.kind + ":" + owner.id
+			subject, ok := subjectsByID[key]
+			if !ok {
+				subject = buildCLISubject(owner.id, cliByID[owner.id])
+				subjectsByID[key] = subject
 			}
-			owner := providerSurfaceBindingOwner(surface)
-			if owner.id == "" {
-				continue
+			if currentProviderID != "" {
+				subject.providerIDs[currentProviderID] = struct{}{}
 			}
-			switch owner.kind {
-			case ownerKindCLI:
-				key := owner.kind + ":" + owner.id
-				subject, ok := subjectsByID[key]
-				if !ok {
-					subject = buildCLISubject(owner.id, cliByID[owner.id])
-					subjectsByID[key] = subject
-				}
-				if currentProviderID != "" {
-					subject.providerIDs[currentProviderID] = struct{}{}
-				}
-				subject.providerSurfaceBindingIDs[instanceID] = struct{}{}
-			case ownerKindVendor:
-				key := owner.kind + ":" + owner.id
-				subject, ok := subjectsByID[key]
-				if !ok {
-					subject = buildVendorSubject(owner.id, vendorByID[owner.id])
-					subjectsByID[key] = subject
-				}
-				if currentProviderID != "" {
-					subject.providerIDs[currentProviderID] = struct{}{}
-				}
-				subject.providerSurfaceBindingIDs[instanceID] = struct{}{}
+			subject.surfaceIDs[instanceID] = struct{}{}
+		case ownerKindVendor:
+			key := owner.kind + ":" + owner.id
+			subject, ok := subjectsByID[key]
+			if !ok {
+				subject = buildVendorSubject(owner.id, vendorByID[owner.id])
+				subjectsByID[key] = subject
 			}
+			if currentProviderID != "" {
+				subject.providerIDs[currentProviderID] = struct{}{}
+			}
+			subject.surfaceIDs[instanceID] = struct{}{}
 		}
 	}
 	subjects := make([]*cliSubject, 0, len(subjectsByID))
@@ -264,15 +262,15 @@ func (s *ObservabilityService) buildSubjects(ctx context.Context, providerID str
 	return subjects, nil
 }
 
-func providerSurfaceBindingOwner(surface *managementv1.ProviderSurfaceBindingView) providerSurfaceOwner {
-	if surface == nil || surface.GetRuntime() == nil {
+func providerSurfaceOwnerFromProvider(provider *managementv1.ProviderView) providerSurfaceOwner {
+	if provider == nil || provider.GetRuntime() == nil {
 		return providerSurfaceOwner{}
 	}
-	switch providerv1.RuntimeKind(surface.GetRuntime()) {
+	switch providerv1.RuntimeKind(provider.GetRuntime()) {
 	case providerv1.ProviderSurfaceKind_PROVIDER_SURFACE_KIND_CLI:
-		return providerSurfaceOwner{kind: ownerKindCLI, id: strings.TrimSpace(providerv1.RuntimeCLIID(surface.GetRuntime()))}
+		return providerSurfaceOwner{kind: ownerKindCLI, id: strings.TrimSpace(providerv1.RuntimeCLIID(provider.GetRuntime()))}
 	case providerv1.ProviderSurfaceKind_PROVIDER_SURFACE_KIND_API:
-		return providerSurfaceOwner{kind: ownerKindVendor, id: strings.TrimSpace(surface.GetVendorId())}
+		return providerSurfaceOwner{kind: ownerKindVendor, id: strings.TrimSpace(provider.GetProductInfoId())}
 	default:
 		return providerSurfaceOwner{}
 	}
@@ -280,21 +278,21 @@ func providerSurfaceBindingOwner(surface *managementv1.ProviderSurfaceBindingVie
 
 func buildCLISubject(cliID string, cli *supportv1.CLI) *cliSubject {
 	subject := &cliSubject{
-		owner:                     ownerKindCLI,
-		ownerID:                   strings.TrimSpace(cliID),
-		cliID:                     strings.TrimSpace(cliID),
-		matcherLabel:              "cli_id",
-		probeRunsMetric:           cliProbeRunsMetric,
-		probeLastRunMetric:        cliProbeLastRunMetric,
-		probeLastReasonMetric:     cliProbeLastReasonMetric,
-		probeNextAllowMetric:      cliProbeNextAllowedMetric,
-		authUsableMetric:          cliAuthUsableMetric,
-		credentialLastUsedMetric:  cliCredentialLastUsedMetric,
-		displayName:               strings.TrimSpace(cliID),
-		providerIDs:               map[string]struct{}{},
-		providerSurfaceBindingIDs: map[string]struct{}{},
-		metricNames:               map[string]struct{}{},
-		metricDescriptors:         map[string]runtimeMetricDescriptor{},
+		owner:                    ownerKindCLI,
+		ownerID:                  strings.TrimSpace(cliID),
+		cliID:                    strings.TrimSpace(cliID),
+		matcherLabel:             "cli_id",
+		probeRunsMetric:          cliProbeRunsMetric,
+		probeLastRunMetric:       cliProbeLastRunMetric,
+		probeLastReasonMetric:    cliProbeLastReasonMetric,
+		probeNextAllowMetric:     cliProbeNextAllowedMetric,
+		authUsableMetric:         cliAuthUsableMetric,
+		credentialLastUsedMetric: cliCredentialLastUsedMetric,
+		displayName:              strings.TrimSpace(cliID),
+		providerIDs:              map[string]struct{}{},
+		surfaceIDs:               map[string]struct{}{},
+		metricNames:              map[string]struct{}{},
+		metricDescriptors:        map[string]runtimeMetricDescriptor{},
 	}
 	if cli == nil || cli.GetOauth() == nil || cli.GetOauth().GetObservability() == nil {
 		return subject
@@ -310,21 +308,21 @@ func buildCLISubject(cliID string, cli *supportv1.CLI) *cliSubject {
 
 func buildVendorSubject(vendorID string, vendor *supportv1.Vendor) *cliSubject {
 	subject := &cliSubject{
-		owner:                     ownerKindVendor,
-		ownerID:                   strings.TrimSpace(vendorID),
-		vendorID:                  strings.TrimSpace(vendorID),
-		matcherLabel:              "vendor_id",
-		probeRunsMetric:           vendorProbeRunsMetric,
-		probeLastRunMetric:        vendorProbeLastRunMetric,
-		probeLastReasonMetric:     vendorProbeLastReasonMetric,
-		probeNextAllowMetric:      vendorProbeNextMetric,
-		authUsableMetric:          vendorAuthUsableMetric,
-		credentialLastUsedMetric:  vendorCredentialLastUsedMetric,
-		displayName:               strings.TrimSpace(vendorID),
-		providerIDs:               map[string]struct{}{},
-		providerSurfaceBindingIDs: map[string]struct{}{},
-		metricNames:               map[string]struct{}{},
-		metricDescriptors:         map[string]runtimeMetricDescriptor{},
+		owner:                    ownerKindVendor,
+		ownerID:                  strings.TrimSpace(vendorID),
+		vendorID:                 strings.TrimSpace(vendorID),
+		matcherLabel:             "vendor_id",
+		probeRunsMetric:          vendorProbeRunsMetric,
+		probeLastRunMetric:       vendorProbeLastRunMetric,
+		probeLastReasonMetric:    vendorProbeLastReasonMetric,
+		probeNextAllowMetric:     vendorProbeNextMetric,
+		authUsableMetric:         vendorAuthUsableMetric,
+		credentialLastUsedMetric: vendorCredentialLastUsedMetric,
+		displayName:              strings.TrimSpace(vendorID),
+		providerIDs:              map[string]struct{}{},
+		surfaceIDs:               map[string]struct{}{},
+		metricNames:              map[string]struct{}{},
+		metricDescriptors:        map[string]runtimeMetricDescriptor{},
 	}
 	if vendor == nil {
 		return subject
@@ -467,20 +465,20 @@ func (s *ObservabilityService) queryLabelValues(ctx context.Context, query strin
 	return items, nil
 }
 
-func (s *ObservabilityService) queryInstanceTimestamps(ctx context.Context, query string) ([]ProviderSurfaceBindingTimestamp, error) {
+func (s *ObservabilityService) queryInstanceTimestamps(ctx context.Context, query string) ([]SurfaceTimestamp, error) {
 	samples, err := s.prom.QueryVector(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("consoleapi/providers: query instance timestamps: %w", err)
 	}
-	items := make([]ProviderSurfaceBindingTimestamp, 0, len(samples))
+	items := make([]SurfaceTimestamp, 0, len(samples))
 	for _, sample := range samples {
-		items = append(items, ProviderSurfaceBindingTimestamp{
-			ProviderSurfaceBindingID: strings.TrimSpace(sample.Metric["provider_surface_binding_id"]),
-			Timestamp:                formatPromTimestamp(sample.Value),
+		items = append(items, SurfaceTimestamp{
+			SurfaceID: strings.TrimSpace(sample.Metric["surface_id"]),
+			Timestamp: formatPromTimestamp(sample.Value),
 		})
 	}
-	slices.SortFunc(items, func(left, right ProviderSurfaceBindingTimestamp) int {
-		return strings.Compare(left.ProviderSurfaceBindingID, right.ProviderSurfaceBindingID)
+	slices.SortFunc(items, func(left, right SurfaceTimestamp) int {
+		return strings.Compare(left.SurfaceID, right.SurfaceID)
 	})
 	return items, nil
 }

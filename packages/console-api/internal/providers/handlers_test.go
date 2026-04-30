@@ -10,6 +10,7 @@ import (
 
 	credentialv1 "code-code.internal/go-contract/credential/v1"
 	managementv1 "code-code.internal/go-contract/platform/management/v1"
+	providerservicev1 "code-code.internal/go-contract/platform/provider/v1"
 	providerv1 "code-code.internal/go-contract/provider/v1"
 )
 
@@ -49,45 +50,6 @@ func TestRegisterHandlersListRoutes(t *testing.T) {
 
 	if providersRecorder.Code != http.StatusOK {
 		t.Fatalf("providers status = %d, want 200", providersRecorder.Code)
-	}
-
-	surfaceBindingsRequest := httptest.NewRequest(http.MethodGet, "/api/providers/surface-bindings", nil)
-	surfaceBindingsRecorder := httptest.NewRecorder()
-	mux.ServeHTTP(surfaceBindingsRecorder, surfaceBindingsRequest)
-
-	if surfaceBindingsRecorder.Code != http.StatusOK {
-		t.Fatalf("surfaceBindings status = %d, want 200", surfaceBindingsRecorder.Code)
-	}
-	var surfaceBindingsPayload struct {
-		Items []struct {
-			SurfaceID   string `json:"surfaceId"`
-			DisplayName string `json:"displayName"`
-		} `json:"items"`
-	}
-	if err := json.Unmarshal(surfaceBindingsRecorder.Body.Bytes(), &surfaceBindingsPayload); err != nil {
-		t.Fatalf("json.Unmarshal(surfaceBindings) error = %v", err)
-	}
-	if len(surfaceBindingsPayload.Items) != 1 || surfaceBindingsPayload.Items[0].SurfaceID != "sample-openai-compatible" {
-		t.Fatalf("surfaceBindings payload = %#v", surfaceBindingsPayload.Items)
-	}
-	if surfaceBindingsPayload.Items[0].DisplayName != "默认接入" {
-		t.Fatalf("DisplayName = %q, want %q", surfaceBindingsPayload.Items[0].DisplayName, "默认接入")
-	}
-}
-
-func TestRegisterHandlersCreateAcceptsProtoJSON(t *testing.T) {
-	service := newTestService()
-
-	mux := http.NewServeMux()
-	RegisterHandlers(mux, service)
-
-	request := httptest.NewRequest(http.MethodPost, "/api/providers/surface-bindings", strings.NewReader(`{"displayName":"test","surfaceId":"openai-compatible"}`))
-	request.Header.Set("Content-Type", "application/json")
-	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusCreated {
-		t.Fatalf("status = %d, want 201, body=%s", recorder.Code, recorder.Body.String())
 	}
 }
 
@@ -189,22 +151,8 @@ func (providerManagementStub) ListProviders(context.Context) ([]*managementv1.Pr
 	return []*managementv1.ProviderView{{ProviderId: "provider-provider-openai", DisplayName: "OpenAI"}}, nil
 }
 
-func (providerManagementStub) ListProviderSurfaceBindings(context.Context) ([]*managementv1.ProviderSurfaceBindingView, error) {
-	return []*managementv1.ProviderSurfaceBindingView{{SurfaceId: "sample-openai-compatible", DisplayName: "默认接入"}}, nil
-}
-
-func (providerManagementStub) CreateProviderSurfaceBinding(_ context.Context, request *managementv1.UpsertProviderSurfaceBindingRequest) (*managementv1.ProviderSurfaceBindingView, error) {
-	return &managementv1.ProviderSurfaceBindingView{SurfaceId: request.GetSurfaceId(), DisplayName: request.GetDisplayName()}, nil
-}
-
-func (providerManagementStub) UpdateProviderSurfaceBinding(_ context.Context, instanceID string, request *managementv1.UpsertProviderSurfaceBindingRequest) (*managementv1.ProviderSurfaceBindingView, error) {
-	return &managementv1.ProviderSurfaceBindingView{SurfaceId: instanceID, DisplayName: request.GetDisplayName()}, nil
-}
-
-func (providerManagementStub) DeleteProviderSurfaceBinding(context.Context, string) error { return nil }
-
 func (providerManagementStub) UpdateProvider(_ context.Context, providerID string, request *managementv1.UpdateProviderRequest) (*managementv1.ProviderView, error) {
-	return &managementv1.ProviderView{ProviderId: providerID, DisplayName: request.GetDisplayName()}, nil
+	return &managementv1.ProviderView{ProviderId: providerID, DisplayName: request.GetProvider().GetDisplayName()}, nil
 }
 
 func (providerManagementStub) UpdateProviderAuthentication(_ context.Context, providerID string, _ *managementv1.UpdateProviderAuthenticationRequest) (*managementv1.UpdateProviderAuthenticationResponse, error) {
@@ -235,14 +183,14 @@ func (providerManagementStub) Connect(_ context.Context, request *managementv1.C
 func (providerManagementStub) GetConnectSession(_ context.Context, sessionID string) (*managementv1.ProviderConnectSessionView, error) {
 	return &managementv1.ProviderConnectSessionView{
 		SessionId: sessionID,
-		Phase:     managementv1.ProviderConnectSessionPhase_PROVIDER_CONNECT_SESSION_PHASE_AWAITING_USER,
+		Phase:     providerservicev1.ProviderConnectSessionPhase_PROVIDER_CONNECT_SESSION_PHASE_AWAITING_USER,
 	}, nil
 }
 
 func (providerManagementStub) WatchStatusEvents(_ context.Context, _ []string, yield func(*managementv1.ProviderStatusEvent) error) error {
 	return yield(&managementv1.ProviderStatusEvent{
 		ProviderId: "provider-provider-openai",
-		Kind:       managementv1.ProviderStatusEventKind_PROVIDER_STATUS_EVENT_KIND_WORKFLOW,
+		Kind:       providerservicev1.ProviderStatusEventKind_PROVIDER_STATUS_EVENT_KIND_WORKFLOW,
 	})
 }
 
@@ -250,7 +198,7 @@ func (providerManagementStub) ProbeProvidersObservability(_ context.Context, pro
 	providerID := firstProviderID(providerIDs)
 	return &managementv1.ProbeProviderObservabilityResponse{
 		ProviderId: providerID,
-		Outcome:    managementv1.ProviderOAuthObservabilityProbeOutcome_PROVIDER_O_AUTH_OBSERVABILITY_PROBE_OUTCOME_EXECUTED,
+		Outcome:    providerservicev1.ProviderOAuthObservabilityProbeOutcome_PROVIDER_O_AUTH_OBSERVABILITY_PROBE_OUTCOME_EXECUTED,
 		Message:    "probe completed",
 	}, nil
 }

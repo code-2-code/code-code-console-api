@@ -11,6 +11,7 @@ import (
 
 	observabilityv1 "code-code.internal/go-contract/observability/v1"
 	managementv1 "code-code.internal/go-contract/platform/management/v1"
+	providerservicev1 "code-code.internal/go-contract/platform/provider/v1"
 	supportv1 "code-code.internal/go-contract/platform/support/v1"
 	vendordefinitionv1 "code-code.internal/go-contract/vendor_definition/v1"
 )
@@ -120,17 +121,13 @@ func TestRegisterObservabilityHandlersProbeAllIncludesVendorTarget(t *testing.T)
 		Providers: observabilityProviderListerStub{
 			items: []*managementv1.ProviderView{{
 				ProviderId: "provider-cli",
-				Surfaces: []*managementv1.ProviderSurfaceBindingView{{
-					SurfaceId: "provider-openai",
-					Runtime:   testCLIProviderSurfaceRuntime("codex"),
-				}},
+				SurfaceId:  "provider-openai",
+				Runtime:    testCLIProviderSurfaceRuntime("codex"),
 			}, {
-				ProviderId: "provider-vendor",
-				Surfaces: []*managementv1.ProviderSurfaceBindingView{{
-					SurfaceId: "provider-minimax",
-					VendorId:  "minimax",
-					Runtime:   testAPIProviderSurfaceRuntime(),
-				}},
+				ProviderId:    "provider-vendor",
+				SurfaceId:     "provider-minimax",
+				ProductInfoId: "minimax",
+				Runtime:       testAPIProviderSurfaceRuntime(),
 			}},
 		},
 		Support:    observabilitySupportStub{},
@@ -139,8 +136,7 @@ func TestRegisterObservabilityHandlersProbeAllIncludesVendorTarget(t *testing.T)
 			responsesByProvider: map[string]*managementv1.ProbeProviderObservabilityResponse{
 				"provider-cli": {
 					ProviderId: "provider-cli",
-					CliId:      "codex",
-					Outcome:    managementv1.ProviderOAuthObservabilityProbeOutcome_PROVIDER_O_AUTH_OBSERVABILITY_PROBE_OUTCOME_EXECUTED,
+					Outcome:    providerservicev1.ProviderOAuthObservabilityProbeOutcome_PROVIDER_O_AUTH_OBSERVABILITY_PROBE_OUTCOME_EXECUTED,
 					Message:    "provider probe completed",
 				},
 			},
@@ -168,12 +164,10 @@ func TestRegisterObservabilityHandlersSummaryIncludesVendor(t *testing.T) {
 	service, err := NewObservabilityService(ObservabilityServiceConfig{
 		Providers: observabilityProviderListerStub{
 			items: []*managementv1.ProviderView{{
-				ProviderId: "provider-minimax",
-				Surfaces: []*managementv1.ProviderSurfaceBindingView{{
-					SurfaceId: "provider-minimax",
-					VendorId:  "minimax",
-					Runtime:   testAPIProviderSurfaceRuntime(),
-				}},
+				ProviderId:    "provider-minimax",
+				SurfaceId:     "provider-minimax",
+				ProductInfoId: "minimax",
+				Runtime:       testAPIProviderSurfaceRuntime(),
 			}},
 		},
 		Support: observabilitySupportStub{
@@ -265,7 +259,7 @@ func TestRegisterObservabilityHandlersProviderReturnsPartialDataOnPrometheusErro
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200, body=%s", recorder.Code, recorder.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), `"providerSurfaceBindingIds":["provider-openai"]`) {
+	if !strings.Contains(recorder.Body.String(), `"surfaceIds":["provider-openai"]`) {
 		t.Fatalf("response = %s", recorder.Body.String())
 	}
 	if strings.Contains(recorder.Body.String(), `"provider_observability_failed"`) {
@@ -384,16 +378,45 @@ func TestRegisterObservabilityHandlersProviderStatusViewKeepsProbeReasonForFailu
 	}
 }
 
+func TestRegisterObservabilityHandlersProviderStatusViewOmitsClearedProbeReasonForFailure(t *testing.T) {
+	service, err := NewObservabilityService(ObservabilityServiceConfig{
+		Providers: observabilityProviderListerStub{},
+		Support:   observabilitySupportStub{},
+		Prometheus: observabilityProbeReasonPrometheusStub{
+			outcome:        5,
+			reasonValue:    0,
+			reasonValueSet: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewObservabilityService() error = %v", err)
+	}
+	mux := http.NewServeMux()
+	RegisterObservabilityHandlers(mux, service)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/providers/observability/providers/provider-openai?window=1h&view=status", nil)
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"lastProbeOutcome":[{"value":5}]`) {
+		t.Fatalf("response = %s", recorder.Body.String())
+	}
+	if strings.Contains(recorder.Body.String(), `"lastProbeReason"`) {
+		t.Fatalf("response unexpectedly contains cleared lastProbeReason: %s", recorder.Body.String())
+	}
+}
+
 func TestRegisterObservabilityHandlersProviderCardViewOmitsProbeSeries(t *testing.T) {
 	service, err := NewObservabilityService(ObservabilityServiceConfig{
 		Providers: observabilityProviderListerStub{
 			items: []*managementv1.ProviderView{{
-				ProviderId: "provider-minimax",
-				Surfaces: []*managementv1.ProviderSurfaceBindingView{{
-					SurfaceId: "provider-minimax",
-					VendorId:  "minimax",
-					Runtime:   testAPIProviderSurfaceRuntime(),
-				}},
+				ProviderId:    "provider-minimax",
+				SurfaceId:     "provider-minimax",
+				ProductInfoId: "minimax",
+				Runtime:       testAPIProviderSurfaceRuntime(),
 			}},
 		},
 		Support: observabilitySupportStub{
@@ -452,12 +475,8 @@ func (s observabilityProviderListerStub) ListProviders(context.Context) ([]*mana
 	return []*managementv1.ProviderView{
 		{
 			ProviderId: "provider-openai",
-			Surfaces: []*managementv1.ProviderSurfaceBindingView{
-				{
-					SurfaceId: "provider-openai",
-					Runtime:   testCLIProviderSurfaceRuntime("codex"),
-				},
-			},
+			SurfaceId:  "provider-openai",
+			Runtime:    testCLIProviderSurfaceRuntime("codex"),
 		},
 	}, nil
 }
@@ -505,7 +524,9 @@ func (s observabilitySupportStub) ListVendors(context.Context) ([]*supportv1.Ven
 type observabilityPrometheusStub struct{}
 
 type observabilityProbeReasonPrometheusStub struct {
-	outcome float64
+	outcome        float64
+	reasonValue    float64
+	reasonValueSet bool
 }
 
 type observabilityProbeStub struct {
@@ -540,8 +561,7 @@ func (s observabilityProbeStub) ProbeProvidersObservability(
 	return &managementv1.ProbeProviderObservabilityResponse{
 		ProviderId:    providerID,
 		ProviderIds:   providerIDs,
-		CliId:         "codex",
-		Outcome:       managementv1.ProviderOAuthObservabilityProbeOutcome_PROVIDER_O_AUTH_OBSERVABILITY_PROBE_OUTCOME_EXECUTED,
+		Outcome:       providerservicev1.ProviderOAuthObservabilityProbeOutcome_PROVIDER_O_AUTH_OBSERVABILITY_PROBE_OUTCOME_EXECUTED,
 		Message:       "probe completed",
 		NextAllowedAt: "",
 	}, nil
@@ -581,8 +601,8 @@ func (observabilityPrometheusStub) QueryVector(_ context.Context, query string) 
 		return []promVectorSample{
 			{
 				Metric: map[string]string{
-					"provider_surface_binding_id": "provider-minimax",
-					"model_id":                    "MiniMax-M1",
+					"surface_id": "provider-minimax",
+					"model_id":   "MiniMax-M1",
 				},
 				Value: 42,
 			},
@@ -628,8 +648,12 @@ func (s observabilityProbeReasonPrometheusStub) QueryVector(_ context.Context, q
 			{Metric: map[string]string{"provider_id": providerID}, Value: 1713452400},
 		}, nil
 	case strings.Contains(query, "gen_ai_provider_cli_oauth_active_operation_last_reason"):
+		reasonValue := float64(1)
+		if s.reasonValueSet {
+			reasonValue = s.reasonValue
+		}
 		return []promVectorSample{
-			{Metric: map[string]string{"provider_id": providerID, "reason": "PROBE_FAILED"}, Value: 1},
+			{Metric: map[string]string{"provider_id": providerID, "reason": "PROBE_FAILED"}, Value: reasonValue},
 		}, nil
 	case strings.Contains(query, "gen_ai_provider_cli_oauth_active_operation_next_allowed"):
 		return []promVectorSample{

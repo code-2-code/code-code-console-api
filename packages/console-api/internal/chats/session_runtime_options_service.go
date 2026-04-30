@@ -2,6 +2,7 @@ package chats
 
 import (
 	"context"
+	"fmt"
 
 	agentsessionv1 "code-code.internal/go-contract/platform/agent_session/v1"
 	cliruntimev1 "code-code.internal/go-contract/platform/cli_runtime/v1"
@@ -9,8 +10,8 @@ import (
 	supportv1 "code-code.internal/go-contract/platform/support/v1"
 )
 
-type providerSurfaceBindingLister interface {
-	ListProviderSurfaceBindings(context.Context) ([]*managementv1.ProviderSurfaceBindingView, error)
+type providerLister interface {
+	ListProviders(context.Context) ([]*managementv1.ProviderView, error)
 }
 
 type cliDefinitionLister interface {
@@ -31,14 +32,14 @@ type sessionRuntimeOptionsService interface {
 }
 
 type sessionRuntimeOptionsCatalogService struct {
-	providers        providerSurfaceBindingLister
+	providers        providerLister
 	cliDefinitions   cliDefinitionLister
 	cliSupport       cliSupportLister
 	cliRuntimeImages cliRuntimeImageLister
 }
 
 func NewSessionRuntimeOptionsService(
-	providers providerSurfaceBindingLister,
+	providers providerLister,
 	cliDefinitions cliDefinitionLister,
 	cliSupport cliSupportLister,
 	cliRuntimeImages cliRuntimeImageLister,
@@ -73,19 +74,19 @@ func (s *sessionRuntimeOptionsCatalogService) ValidateInlineSpec(ctx context.Con
 func (s *sessionRuntimeOptionsCatalogService) loadCatalog(ctx context.Context) (*runtimeCatalog, error) {
 	clis, err := s.cliSupport.ListCLIs(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load CLIs from support: %w", err)
 	}
 	cliDefinitions, err := s.cliDefinitions.List(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load CLI definitions from provider: %w", err)
 	}
-	providerSurfaces, err := s.providers.ListProviderSurfaceBindings(ctx)
+	providerSurfaces, err := s.providers.ListProviders(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load providers: %w", err)
 	}
 	availableImages, err := s.cliRuntimeImages.LatestAvailableImages(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load CLI runtime images: %w", err)
 	}
 	return buildRuntimeCatalog(clis, cliDefinitions, availableImages, providerSurfaces), nil
 }
