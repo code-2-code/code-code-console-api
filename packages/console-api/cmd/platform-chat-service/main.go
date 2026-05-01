@@ -120,7 +120,6 @@ func main() {
 	managementv1.RegisterAgentSessionManagementServiceServer(grpcServer, chats.NewAgentSessionManagementProxy(sessionClient))
 	chatv1.RegisterChatServiceServer(grpcServer, chats.NewGRPCChatServer(chats.NewSessionRuntimeOptionsService(
 		platformClient.Providers(),
-		platformClient.CLIDefinitions(),
 		platformClient.SupportResources(),
 		platformClient.CLIRuntimes(),
 	), chatState))

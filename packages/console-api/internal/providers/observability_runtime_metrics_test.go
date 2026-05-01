@@ -10,9 +10,10 @@ import (
 	observabilityv1 "code-code.internal/go-contract/observability/v1"
 	managementv1 "code-code.internal/go-contract/platform/management/v1"
 	supportv1 "code-code.internal/go-contract/platform/support/v1"
+	providerv1 "code-code.internal/go-contract/provider/v1"
 )
 
-func TestObservabilityServiceProviderIncludesRuntimeGaugeMetricsWithoutActiveQueryProfile(t *testing.T) {
+func TestObservabilityServiceProviderIncludesRuntimeGaugeMetricsWithoutQuotaQueryProfile(t *testing.T) {
 	prometheus := &codexRuntimeMetricPrometheusStub{}
 	service, err := NewObservabilityService(ObservabilityServiceConfig{
 		Providers:  codexRuntimeMetricProviderListerStub{},
@@ -116,7 +117,7 @@ func (codexRuntimeMetricProviderListerStub) ListProviders(context.Context) ([]*m
 	return []*managementv1.ProviderView{{
 		ProviderId: "provider-openai",
 		SurfaceId:  "provider-openai",
-		Runtime:    testCLIProviderSurfaceRuntime("codex"),
+		Endpoints:  []*providerv1.ProviderEndpoint{testCLIProviderEndpoint("codex")},
 	}}, nil
 }
 
@@ -136,8 +137,8 @@ func (codexRuntimeMetricSupportStub) ListCLIs(context.Context) ([]*supportv1.CLI
 							Kind:     observabilityv1.ObservabilityMetricKind_OBSERVABILITY_METRIC_KIND_GAUGE,
 							Category: observabilityv1.ObservabilityMetricCategory_OBSERVABILITY_METRIC_CATEGORY_USAGE,
 						}},
-						Collection: &observabilityv1.ObservabilityProfile_ActiveQuery{
-							ActiveQuery: &observabilityv1.ActiveQueryCollection{},
+						Collection: &observabilityv1.ObservabilityProfile_QuotaQuery{
+							QuotaQuery: &observabilityv1.QuotaQueryCollection{},
 						},
 					},
 					{

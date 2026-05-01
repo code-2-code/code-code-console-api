@@ -7,13 +7,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	managementv1 "code-code.internal/go-contract/platform/management/v1"
+	supportv1 "code-code.internal/go-contract/platform/support/v1"
 )
 
 func TestRegisterCLIDefinitionHandlersListCLIDefinitions(t *testing.T) {
 	t.Parallel()
 
-	stub := &cliDefinitionManagementStub{}
+	stub := &cliSupportManagementStub{}
 	mux := http.NewServeMux()
 	RegisterCLIDefinitionHandlers(mux, stub)
 
@@ -25,7 +25,7 @@ func TestRegisterCLIDefinitionHandlersListCLIDefinitions(t *testing.T) {
 		t.Fatalf("status = %d, want 200", recorder.Code)
 	}
 	if !stub.listCalled {
-		t.Fatal("List() was not called")
+		t.Fatal("ListCLIs() was not called")
 	}
 
 	var payload struct {
@@ -45,13 +45,13 @@ func TestRegisterCLIDefinitionHandlersListCLIDefinitions(t *testing.T) {
 	}
 }
 
-type cliDefinitionManagementStub struct {
+type cliSupportManagementStub struct {
 	listCalled bool
 }
 
-func (s *cliDefinitionManagementStub) List(context.Context) ([]*managementv1.CLIDefinitionView, error) {
+func (s *cliSupportManagementStub) ListCLIs(context.Context) ([]*supportv1.CLI, error) {
 	s.listCalled = true
-	return []*managementv1.CLIDefinitionView{{
+	return []*supportv1.CLI{{
 		CliId:       "codex",
 		DisplayName: "Codex CLI",
 		WebsiteUrl:  "https://openai.com/codex/",

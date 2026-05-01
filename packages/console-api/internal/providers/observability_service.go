@@ -19,25 +19,18 @@ const (
 	ownerKindCLI    = "cli"
 	ownerKindVendor = "vendor"
 
-	cliProbeRunsMetric             = "gen_ai.provider.cli.oauth.active.operation.runs.total"
-	cliProbeLastRunMetric          = "gen_ai.provider.cli.oauth.active.operation.last.run.timestamp.seconds"
-	cliProbeLastOutcomeMetric      = "gen_ai.provider.cli.oauth.active.operation.last.outcome"
-	cliProbeLastReasonMetric       = "gen_ai.provider.cli.oauth.active.operation.last.reason"
-	cliProbeNextAllowedMetric      = "gen_ai.provider.cli.oauth.active.operation.next.allowed.timestamp.seconds"
-	cliAuthUsableMetric            = "gen_ai.provider.cli.oauth.active.operation.auth.usable"
-	cliCredentialLastUsedMetric    = "gen_ai.provider.cli.oauth.credential.last.used.timestamp.seconds"
-	vendorProbeRunsMetric          = "gen_ai.provider.vendor.api_key.active.operation.runs.total"
-	vendorProbeLastRunMetric       = "gen_ai.provider.vendor.api_key.active.operation.last.run.timestamp.seconds"
-	vendorProbeLastOutcomeMetric   = "gen_ai.provider.vendor.api_key.active.operation.last.outcome"
-	vendorProbeLastReasonMetric    = "gen_ai.provider.vendor.api_key.active.operation.last.reason"
-	vendorProbeNextMetric          = "gen_ai.provider.vendor.api_key.active.operation.next.allowed.timestamp.seconds"
-	vendorAuthUsableMetric         = "gen_ai.provider.vendor.api_key.active.operation.auth.usable"
-	vendorCredentialLastUsedMetric = "gen_ai.provider.vendor.api_key.credential.last.used.timestamp.seconds"
-	refreshReadyMetric             = "gen_ai.provider.cli.oauth.refresh.ready"
-	refreshAttemptsMetric          = "gen_ai.provider.cli.oauth.refresh.attempts.total"
-	runtimeRequestsMetric          = "gen_ai.provider.runtime.requests.total"
-	runtimeRateLimitMetric         = "gen_ai.provider.runtime.rate_limit.events.total"
-	runtimeLastSeenMetric          = "gen_ai.provider.runtime.last_seen.timestamp.seconds"
+	surfaceProbeRunsMetric          = "gen_ai.provider.surface.probe.active.operation.runs.total"
+	surfaceProbeLastRunMetric       = "gen_ai.provider.surface.probe.active.operation.last.run.timestamp.seconds"
+	surfaceProbeLastOutcomeMetric   = "gen_ai.provider.surface.probe.active.operation.last.outcome"
+	surfaceProbeLastReasonMetric    = "gen_ai.provider.surface.probe.active.operation.last.reason"
+	surfaceProbeNextAllowedMetric   = "gen_ai.provider.surface.probe.active.operation.next.allowed.timestamp.seconds"
+	surfaceAuthUsableMetric         = "gen_ai.provider.surface.probe.active.operation.auth.usable"
+	surfaceCredentialLastUsedMetric = "gen_ai.provider.surface.probe.credential.last.used.timestamp.seconds"
+	refreshReadyMetric              = "gen_ai.provider.cli.oauth.refresh.ready"
+	refreshAttemptsMetric           = "gen_ai.provider.cli.oauth.refresh.attempts.total"
+	runtimeRequestsMetric           = "gen_ai.provider.runtime.requests.total"
+	runtimeRateLimitMetric          = "gen_ai.provider.runtime.rate_limit.events.total"
+	runtimeLastSeenMetric           = "gen_ai.provider.runtime.last_seen.timestamp.seconds"
 )
 
 type providerLister interface {
@@ -81,9 +74,10 @@ type cliSubject struct {
 	iconURL                  string
 	providerIDs              map[string]struct{}
 	surfaceIDs               map[string]struct{}
+	activeProbeIDs           map[string]struct{}
 	metricNames              map[string]struct{}
 	metricDescriptors        map[string]runtimeMetricDescriptor
-	supportsActiveQuery      bool
+	supportsQuotaQuery       bool
 }
 
 type providerSurfaceOwner struct {
@@ -97,7 +91,7 @@ type runtimeMetricDescriptor struct {
 	unit        string
 	kind        observabilityv1.ObservabilityMetricKind
 	category    observabilityv1.ObservabilityMetricCategory
-	activeQuery bool
+	quotaQuery  bool
 }
 
 func NewObservabilityService(config ObservabilityServiceConfig) (*ObservabilityService, error) {
@@ -195,6 +189,7 @@ func (s *ObservabilityService) buildSubjects(ctx context.Context, providerID str
 		}
 	}
 	vendorByID := make(map[string]*supportv1.Vendor, len(vendorItems))
+	surfaceOwnerByID := make(map[string]string)
 	for _, vendor := range vendorItems {
 		if vendor == nil || vendor.GetVendor() == nil {
 			continue
@@ -202,6 +197,12 @@ func (s *ObservabilityService) buildSubjects(ctx context.Context, providerID str
 		vendorID := strings.TrimSpace(vendor.GetVendor().GetVendorId())
 		if vendorID != "" {
 			vendorByID[vendorID] = vendor
+		}
+		for _, surface := range vendor.GetSurfaces() {
+			surfaceID := strings.TrimSpace(surface.GetSurfaceId())
+			if surfaceID != "" && vendorID != "" {
+				surfaceOwnerByID[surfaceID] = vendorID
+			}
 		}
 	}
 	subjectsByID := map[string]*cliSubject{}
@@ -217,7 +218,7 @@ func (s *ObservabilityService) buildSubjects(ctx context.Context, providerID str
 		if instanceID == "" {
 			continue
 		}
-		owner := providerSurfaceOwnerFromProvider(provider)
+		owner := providerSurfaceOwnerFromProvider(provider, surfaceOwnerByID)
 		if owner.id == "" {
 			continue
 		}
@@ -229,10 +230,7 @@ func (s *ObservabilityService) buildSubjects(ctx context.Context, providerID str
 				subject = buildCLISubject(owner.id, cliByID[owner.id])
 				subjectsByID[key] = subject
 			}
-			if currentProviderID != "" {
-				subject.providerIDs[currentProviderID] = struct{}{}
-			}
-			subject.surfaceIDs[instanceID] = struct{}{}
+			addSubjectProvider(subject, provider)
 		case ownerKindVendor:
 			key := owner.kind + ":" + owner.id
 			subject, ok := subjectsByID[key]
@@ -240,10 +238,7 @@ func (s *ObservabilityService) buildSubjects(ctx context.Context, providerID str
 				subject = buildVendorSubject(owner.id, vendorByID[owner.id])
 				subjectsByID[key] = subject
 			}
-			if currentProviderID != "" {
-				subject.providerIDs[currentProviderID] = struct{}{}
-			}
-			subject.surfaceIDs[instanceID] = struct{}{}
+			addSubjectProvider(subject, provider)
 		}
 	}
 	subjects := make([]*cliSubject, 0, len(subjectsByID))
@@ -262,17 +257,30 @@ func (s *ObservabilityService) buildSubjects(ctx context.Context, providerID str
 	return subjects, nil
 }
 
-func providerSurfaceOwnerFromProvider(provider *managementv1.ProviderView) providerSurfaceOwner {
-	if provider == nil || provider.GetRuntime() == nil {
+func providerSurfaceOwnerFromProvider(provider *managementv1.ProviderView, surfaceOwnerByID map[string]string) providerSurfaceOwner {
+	if provider == nil {
 		return providerSurfaceOwner{}
 	}
-	switch providerv1.RuntimeKind(provider.GetRuntime()) {
-	case providerv1.ProviderSurfaceKind_PROVIDER_SURFACE_KIND_CLI:
-		return providerSurfaceOwner{kind: ownerKindCLI, id: strings.TrimSpace(providerv1.RuntimeCLIID(provider.GetRuntime()))}
-	case providerv1.ProviderSurfaceKind_PROVIDER_SURFACE_KIND_API:
-		return providerSurfaceOwner{kind: ownerKindVendor, id: strings.TrimSpace(provider.GetProductInfoId())}
-	default:
-		return providerSurfaceOwner{}
+	for _, endpoint := range provider.GetEndpoints() {
+		if cliID := providerv1.EndpointCLIID(endpoint); cliID != "" {
+			return providerSurfaceOwner{kind: ownerKindCLI, id: cliID}
+		}
+	}
+	if vendorID := strings.TrimSpace(surfaceOwnerByID[strings.TrimSpace(provider.GetSurfaceId())]); vendorID != "" {
+		return providerSurfaceOwner{kind: ownerKindVendor, id: vendorID}
+	}
+	return providerSurfaceOwner{}
+}
+
+func addSubjectProvider(subject *cliSubject, provider *managementv1.ProviderView) {
+	if subject == nil || provider == nil {
+		return
+	}
+	if providerID := strings.TrimSpace(provider.GetProviderId()); providerID != "" {
+		subject.providerIDs[providerID] = struct{}{}
+	}
+	if surfaceID := strings.TrimSpace(provider.GetSurfaceId()); surfaceID != "" {
+		subject.surfaceIDs[surfaceID] = struct{}{}
 	}
 }
 
@@ -282,15 +290,16 @@ func buildCLISubject(cliID string, cli *supportv1.CLI) *cliSubject {
 		ownerID:                  strings.TrimSpace(cliID),
 		cliID:                    strings.TrimSpace(cliID),
 		matcherLabel:             "cli_id",
-		probeRunsMetric:          cliProbeRunsMetric,
-		probeLastRunMetric:       cliProbeLastRunMetric,
-		probeLastReasonMetric:    cliProbeLastReasonMetric,
-		probeNextAllowMetric:     cliProbeNextAllowedMetric,
-		authUsableMetric:         cliAuthUsableMetric,
-		credentialLastUsedMetric: cliCredentialLastUsedMetric,
+		probeRunsMetric:          surfaceProbeRunsMetric,
+		probeLastRunMetric:       surfaceProbeLastRunMetric,
+		probeLastReasonMetric:    surfaceProbeLastReasonMetric,
+		probeNextAllowMetric:     surfaceProbeNextAllowedMetric,
+		authUsableMetric:         surfaceAuthUsableMetric,
+		credentialLastUsedMetric: surfaceCredentialLastUsedMetric,
 		displayName:              strings.TrimSpace(cliID),
 		providerIDs:              map[string]struct{}{},
 		surfaceIDs:               map[string]struct{}{},
+		activeProbeIDs:           map[string]struct{}{},
 		metricNames:              map[string]struct{}{},
 		metricDescriptors:        map[string]runtimeMetricDescriptor{},
 	}
@@ -302,7 +311,7 @@ func buildCLISubject(cliID string, cli *supportv1.CLI) *cliSubject {
 		subject.displayName = strings.TrimSpace(cliID)
 	}
 	subject.iconURL = strings.TrimSpace(cli.GetIconUrl())
-	applyObservabilityCapability(subject, cli.GetOauth().GetObservability())
+	applyObservabilityCapability(subject, cli.GetOauth().GetObservability(), subject.ownerID)
 	return subject
 }
 
@@ -312,15 +321,16 @@ func buildVendorSubject(vendorID string, vendor *supportv1.Vendor) *cliSubject {
 		ownerID:                  strings.TrimSpace(vendorID),
 		vendorID:                 strings.TrimSpace(vendorID),
 		matcherLabel:             "vendor_id",
-		probeRunsMetric:          vendorProbeRunsMetric,
-		probeLastRunMetric:       vendorProbeLastRunMetric,
-		probeLastReasonMetric:    vendorProbeLastReasonMetric,
-		probeNextAllowMetric:     vendorProbeNextMetric,
-		authUsableMetric:         vendorAuthUsableMetric,
-		credentialLastUsedMetric: vendorCredentialLastUsedMetric,
+		probeRunsMetric:          surfaceProbeRunsMetric,
+		probeLastRunMetric:       surfaceProbeLastRunMetric,
+		probeLastReasonMetric:    surfaceProbeLastReasonMetric,
+		probeNextAllowMetric:     surfaceProbeNextAllowedMetric,
+		authUsableMetric:         surfaceAuthUsableMetric,
+		credentialLastUsedMetric: surfaceCredentialLastUsedMetric,
 		displayName:              strings.TrimSpace(vendorID),
 		providerIDs:              map[string]struct{}{},
 		surfaceIDs:               map[string]struct{}{},
+		activeProbeIDs:           map[string]struct{}{},
 		metricNames:              map[string]struct{}{},
 		metricDescriptors:        map[string]runtimeMetricDescriptor{},
 	}
@@ -334,13 +344,13 @@ func buildVendorSubject(vendorID string, vendor *supportv1.Vendor) *cliSubject {
 		}
 		subject.iconURL = strings.TrimSpace(vendor.GetVendor().GetIconUrl())
 	}
-	for _, binding := range vendor.GetProviderBindings() {
-		applyObservabilityCapability(subject, binding.GetObservability())
+	for _, surface := range vendor.GetSurfaces() {
+		applyObservabilityCapability(subject, surface.GetObservability(), strings.TrimSpace(surface.GetQuotaProbeId()))
 	}
 	return subject
 }
 
-func applyObservabilityCapability(subject *cliSubject, capability *observabilityv1.ObservabilityCapability) {
+func applyObservabilityCapability(subject *cliSubject, capability *observabilityv1.ObservabilityCapability, defaultProbeID string) {
 	if subject == nil || capability == nil {
 		return
 	}
@@ -348,9 +358,20 @@ func applyObservabilityCapability(subject *cliSubject, capability *observability
 		if profile == nil {
 			continue
 		}
-		activeQueryProfile := profile.GetActiveQuery() != nil
-		if activeQueryProfile {
-			subject.supportsActiveQuery = true
+		quotaQuery := profile.GetQuotaQuery()
+		quotaQueryProfile := quotaQuery != nil
+		if quotaQueryProfile {
+			subject.supportsQuotaQuery = true
+			probeID := strings.TrimSpace(quotaQuery.GetCollectorId())
+			if probeID == "" {
+				probeID = strings.TrimSpace(defaultProbeID)
+			}
+			if probeID == "" {
+				probeID = strings.TrimSpace(subject.ownerID)
+			}
+			if probeID != "" {
+				subject.activeProbeIDs[probeID] = struct{}{}
+			}
 		}
 		for _, metric := range profile.GetMetrics() {
 			if metric == nil {
@@ -367,7 +388,7 @@ func applyObservabilityCapability(subject *cliSubject, capability *observability
 				unit:        strings.TrimSpace(metric.GetUnit()),
 				kind:        metric.GetKind(),
 				category:    metric.GetCategory(),
-				activeQuery: activeQueryProfile,
+				quotaQuery:  quotaQueryProfile,
 			}
 		}
 	}
@@ -447,6 +468,18 @@ func providerRegex(subject *cliSubject) string {
 	return strings.Join(values, "|")
 }
 
+func activeProbeRegex(subject *cliSubject) string {
+	if subject == nil || len(subject.activeProbeIDs) == 0 {
+		return ""
+	}
+	values := make([]string, 0, len(subject.activeProbeIDs))
+	for probeID := range subject.activeProbeIDs {
+		values = append(values, regexp.QuoteMeta(probeID))
+	}
+	slices.Sort(values)
+	return strings.Join(values, "|")
+}
+
 func (s *ObservabilityService) queryLabelValues(ctx context.Context, query string, label string) ([]ProviderLabelValue, error) {
 	samples, err := s.prom.QueryVector(ctx, query)
 	if err != nil {
@@ -473,7 +506,7 @@ func (s *ObservabilityService) queryInstanceTimestamps(ctx context.Context, quer
 	items := make([]SurfaceTimestamp, 0, len(samples))
 	for _, sample := range samples {
 		items = append(items, SurfaceTimestamp{
-			SurfaceID: strings.TrimSpace(sample.Metric["surface_id"]),
+			SurfaceID: metricSurfaceIdentity(sample.Metric),
 			Timestamp: formatPromTimestamp(sample.Value),
 		})
 	}
@@ -536,6 +569,20 @@ func promActiveDiscoveryMatcher(subject *cliSubject) string {
 	if subject == nil {
 		return ""
 	}
+	parts := []string{}
+	if providerPattern := providerRegex(subject); providerPattern != "" {
+		parts = append(parts, fmt.Sprintf(`provider_id=~%s`, strconv.Quote(providerPattern)))
+	}
+	if probePattern := activeProbeRegex(subject); probePattern != "" {
+		parts = append(parts, fmt.Sprintf(`schema_id=~%s`, strconv.Quote(probePattern)))
+	}
+	return strings.Join(parts, ",")
+}
+
+func promOwnerMatcher(subject *cliSubject) string {
+	if subject == nil {
+		return ""
+	}
 	matcherLabel := strings.TrimSpace(subject.matcherLabel)
 	if matcherLabel == "" {
 		matcherLabel = "cli_id"
@@ -554,7 +601,7 @@ func promActiveDiscoveryMatcher(subject *cliSubject) string {
 }
 
 func promRuntimeMatcher(subject *cliSubject) string {
-	return promActiveDiscoveryMatcher(subject)
+	return promOwnerMatcher(subject)
 }
 
 func parseWindowDuration(window string) (time.Duration, error) {

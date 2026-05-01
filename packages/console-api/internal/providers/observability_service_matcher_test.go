@@ -35,9 +35,13 @@ func TestPromActiveDiscoveryMatcherIncludesProviderFilterWhenSingleProvider(t *t
 		providerIDs: map[string]struct{}{
 			"provider-openai": {},
 		},
+		activeProbeIDs: map[string]struct{}{"codex-quota": {}},
 	})
-	if got, want := matcher, `cli_id="codex"`; !strings.Contains(matcher, want) {
+	if got, want := matcher, `schema_id=~"codex-quota"`; !strings.Contains(matcher, want) {
 		t.Fatalf("promActiveDiscoveryMatcher() = %q, want contains %q", got, want)
+	}
+	if strings.Contains(matcher, `cli_id=`) {
+		t.Fatalf("promActiveDiscoveryMatcher() = %q, want no owner matcher", matcher)
 	}
 	if !strings.Contains(matcher, `provider_id=~"provider-openai"`) {
 		t.Fatalf("promActiveDiscoveryMatcher() = %q, want single provider filter", matcher)
@@ -52,9 +56,10 @@ func TestPromActiveDiscoveryMatcherIncludesProviderFilterForMultipleProviders(t 
 			"provider-alpha": {},
 			"provider-beta":  {},
 		},
+		activeProbeIDs: map[string]struct{}{"codex-quota": {}},
 	})
-	if !strings.Contains(matcher, `cli_id="codex"`) {
-		t.Fatalf("promActiveDiscoveryMatcher() = %q, want contains %q", matcher, `cli_id="codex"`)
+	if !strings.Contains(matcher, `schema_id=~"codex-quota"`) {
+		t.Fatalf("promActiveDiscoveryMatcher() = %q, want contains %q", matcher, `schema_id=~"codex-quota"`)
 	}
 	if !strings.Contains(matcher, `provider_id=~"provider-alpha|provider-beta"`) {
 		t.Fatalf("promActiveDiscoveryMatcher() = %q, want provider filter", matcher)
@@ -63,16 +68,11 @@ func TestPromActiveDiscoveryMatcherIncludesProviderFilterForMultipleProviders(t 
 
 func TestActiveProbeMetricNamesMatchAuthServiceOperationMetrics(t *testing.T) {
 	for _, metric := range []string{
-		cliProbeRunsMetric,
-		cliProbeLastRunMetric,
-		cliProbeLastOutcomeMetric,
-		cliProbeLastReasonMetric,
-		cliProbeNextAllowedMetric,
-		vendorProbeRunsMetric,
-		vendorProbeLastRunMetric,
-		vendorProbeLastOutcomeMetric,
-		vendorProbeLastReasonMetric,
-		vendorProbeNextMetric,
+		surfaceProbeRunsMetric,
+		surfaceProbeLastRunMetric,
+		surfaceProbeLastOutcomeMetric,
+		surfaceProbeLastReasonMetric,
+		surfaceProbeNextAllowedMetric,
 	} {
 		if !strings.Contains(metric, ".active.operation.") {
 			t.Fatalf("metric %q should use active.operation namespace", metric)

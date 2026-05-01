@@ -1,6 +1,7 @@
 package platformclient
 
 import (
+	authv1 "code-code.internal/go-contract/platform/auth/v1"
 	chatv1 "code-code.internal/go-contract/platform/chat/v1"
 	cliruntimev1 "code-code.internal/go-contract/platform/cli_runtime/v1"
 	egressservicev1 "code-code.internal/go-contract/platform/egress/v1"
@@ -36,6 +37,7 @@ type Client struct {
 	cliRuntime            cliruntimev1.CLIRuntimeServiceClient
 	profile               profileservicev1.ProfileServiceClient
 	egress                egressservicev1.EgressServiceClient
+	auth                  authv1.AuthServiceClient
 	support               supportv1.SupportServiceClient
 	oauthSession          oauthv1.OAuthSessionServiceClient
 	oauthCallback         oauthv1.OAuthCallbackServiceClient
@@ -45,8 +47,6 @@ type Client struct {
 	rules                 Rules
 	providers             Providers
 	egressPolicies        EgressPolicies
-	templates             Templates
-	cliDefinitions        CLIDefinitions
 	cliRuntimes           CLIRuntimes
 	supportResources      SupportResources
 	agentSessions         AgentSessions
@@ -82,6 +82,7 @@ func New(config Config) (*Client, error) {
 		c.support = supportv1.NewSupportServiceClient(config.SupportConn)
 	}
 	if config.AuthConn != nil {
+		c.auth = authv1.NewAuthServiceClient(config.AuthConn)
 		c.oauthSession = oauthv1.NewOAuthSessionServiceClient(config.AuthConn)
 		c.oauthCallback = oauthv1.NewOAuthCallbackServiceClient(config.AuthConn)
 	}
@@ -91,8 +92,6 @@ func New(config Config) (*Client, error) {
 	c.rules = Rules{client: c}
 	c.providers = Providers{client: c}
 	c.egressPolicies = EgressPolicies{client: c}
-	c.templates = Templates{client: c}
-	c.cliDefinitions = CLIDefinitions{client: c}
 	c.cliRuntimes = CLIRuntimes{client: c}
 	c.supportResources = SupportResources{client: c}
 	c.agentSessions = AgentSessions{client: c}
@@ -151,6 +150,13 @@ func (c *Client) requireEgress() (egressservicev1.EgressServiceClient, error) {
 	return c.egress, nil
 }
 
+func (c *Client) requireAuth() (authv1.AuthServiceClient, error) {
+	if c == nil || c.auth == nil {
+		return nil, status.Error(codes.Unavailable, "auth upstream is not configured")
+	}
+	return c.auth, nil
+}
+
 func (c *Client) requireSupport() (supportv1.SupportServiceClient, error) {
 	if c == nil || c.support == nil {
 		return nil, status.Error(codes.Unavailable, "support upstream is not configured")
@@ -178,8 +184,6 @@ func (c *Client) Skills() *Skills                           { return &c.skills }
 func (c *Client) Rules() *Rules                             { return &c.rules }
 func (c *Client) Providers() *Providers                     { return &c.providers }
 func (c *Client) EgressPolicies() *EgressPolicies           { return &c.egressPolicies }
-func (c *Client) Templates() *Templates                     { return &c.templates }
-func (c *Client) CLIDefinitions() *CLIDefinitions           { return &c.cliDefinitions }
 func (c *Client) CLIRuntimes() *CLIRuntimes                 { return &c.cliRuntimes }
 func (c *Client) SupportResources() *SupportResources       { return &c.supportResources }
 func (c *Client) AgentSessions() *AgentSessions             { return &c.agentSessions }
@@ -201,8 +205,6 @@ type Skills struct{ client *Client }
 type Rules struct{ client *Client }
 type Providers struct{ client *Client }
 type EgressPolicies struct{ client *Client }
-type Templates struct{ client *Client }
-type CLIDefinitions struct{ client *Client }
 type CLIRuntimes struct{ client *Client }
 type SupportResources struct{ client *Client }
 type AgentSessions struct{ client *Client }

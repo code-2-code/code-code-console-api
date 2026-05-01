@@ -9,6 +9,7 @@ import (
 	observabilityv1 "code-code.internal/go-contract/observability/v1"
 	managementv1 "code-code.internal/go-contract/platform/management/v1"
 	supportv1 "code-code.internal/go-contract/platform/support/v1"
+	providerv1 "code-code.internal/go-contract/provider/v1"
 	vendordefinitionv1 "code-code.internal/go-contract/vendor_definition/v1"
 )
 
@@ -49,8 +50,11 @@ func TestObservabilityServiceProviderIncludesVendorRuntimeGaugeMetrics(t *testin
 	if got, want := item.RuntimeMetrics[0].Rows[0].Labels["provider_id"], "provider-minimax"; got != want {
 		t.Fatalf("provider_id label = %q, want %q", got, want)
 	}
-	if !strings.Contains(prometheus.lastQuery, `vendor_id="minimax"`) {
-		t.Fatalf("lastQuery = %q, want vendor matcher", prometheus.lastQuery)
+	if !strings.Contains(prometheus.lastQuery, `provider_id=~"provider-minimax"`) {
+		t.Fatalf("lastQuery = %q, want provider matcher", prometheus.lastQuery)
+	}
+	if !strings.Contains(prometheus.lastQuery, `schema_id=~"api-quota"`) {
+		t.Fatalf("lastQuery = %q, want surface probe matcher", prometheus.lastQuery)
 	}
 	if strings.Contains(prometheus.lastQuery, "last_over_time(") {
 		t.Fatalf("lastQuery = %q, want instant gauge query", prometheus.lastQuery)
@@ -61,10 +65,9 @@ type vendorRuntimeMetricProviderListerStub struct{}
 
 func (vendorRuntimeMetricProviderListerStub) ListProviders(context.Context) ([]*managementv1.ProviderView, error) {
 	return []*managementv1.ProviderView{{
-		ProviderId:    "provider-minimax",
-		SurfaceId:     "provider-minimax",
-		ProductInfoId: "minimax",
-		Runtime:       testAPIProviderSurfaceRuntime(),
+		ProviderId: "provider-minimax",
+		SurfaceId:  "provider-minimax",
+		Endpoints:  []*providerv1.ProviderEndpoint{testAPIProviderEndpoint()},
 	}}, nil
 }
 
@@ -80,7 +83,10 @@ func (vendorRuntimeMetricSupportStub) ListVendors(context.Context) ([]*supportv1
 			VendorId:    "minimax",
 			DisplayName: "MiniMax",
 		},
-		ProviderBindings: []*supportv1.VendorProviderBinding{{
+		Surfaces: []*supportv1.Surface{{
+			SurfaceId:     "provider-minimax",
+			ProductInfoId: "minimax",
+			QuotaProbeId:  "api-quota",
 			Observability: &observabilityv1.ObservabilityCapability{
 				Profiles: []*observabilityv1.ObservabilityProfile{{
 					Metrics: []*observabilityv1.ObservabilityMetric{{
@@ -88,8 +94,8 @@ func (vendorRuntimeMetricSupportStub) ListVendors(context.Context) ([]*supportv1
 						Kind:     observabilityv1.ObservabilityMetricKind_OBSERVABILITY_METRIC_KIND_GAUGE,
 						Category: observabilityv1.ObservabilityMetricCategory_OBSERVABILITY_METRIC_CATEGORY_QUOTA,
 					}},
-					Collection: &observabilityv1.ObservabilityProfile_ActiveQuery{
-						ActiveQuery: &observabilityv1.ActiveQueryCollection{},
+					Collection: &observabilityv1.ObservabilityProfile_QuotaQuery{
+						QuotaQuery: &observabilityv1.QuotaQueryCollection{},
 					},
 				}},
 			},

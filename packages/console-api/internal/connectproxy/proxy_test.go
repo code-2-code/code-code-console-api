@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"code-code.internal/go-contract/platform/model/v1/modelservicev1connect"
-	"code-code.internal/go-contract/platform/provider/v1/providerservicev1connect"
 )
 
 func TestModelServiceProxyForwardsListModels(t *testing.T) {
@@ -21,7 +20,7 @@ func TestModelServiceProxyForwardsListModels(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	handler, err := NewHandler(Config{ModelBaseURL: upstream.URL, ProviderBaseURL: "http://platform-provider-service:8080"})
+	handler, err := NewHandler(Config{ModelBaseURL: upstream.URL})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,33 +34,9 @@ func TestModelServiceProxyForwardsListModels(t *testing.T) {
 	}
 }
 
-func TestProxyForwardsListVendors(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got, want := r.URL.Path, providerservicev1connect.ProviderServiceListVendorsProcedure; got != want {
-			t.Fatalf("upstream path = %q, want %q", got, want)
-		}
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	defer upstream.Close()
-
-	handler, err := NewHandler(Config{ModelBaseURL: "http://platform-model-service:8080", ProviderBaseURL: upstream.URL})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	request := httptest.NewRequest(http.MethodPost, ConsolePathPrefix+providerservicev1connect.ProviderServiceListVendorsProcedure, nil)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusNoContent {
-		t.Fatalf("status = %d, want 204", recorder.Code)
-	}
-}
-
 func TestProxyRejectsOtherProcedures(t *testing.T) {
 	handler, err := NewHandler(Config{
-		ModelBaseURL:    "http://platform-model-service:8080",
-		ProviderBaseURL: "http://platform-provider-service:8080",
+		ModelBaseURL: "http://platform-model-service:8080",
 	})
 	if err != nil {
 		t.Fatal(err)

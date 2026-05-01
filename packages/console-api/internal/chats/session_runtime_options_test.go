@@ -50,7 +50,7 @@ func TestRegisterHandlersSessionRuntimeOptions(t *testing.T) {
 	if len(item.GetExecutionClasses()) != 2 || item.GetExecutionClasses()[0] != "cli-standard" {
 		t.Fatalf("execution classes = %#v", item.GetExecutionClasses())
 	}
-	if len(item.GetSurfaces()) != 1 || item.GetSurfaces()[0].GetRuntimeRef().GetSurfaceId() != "openai-default" {
+	if len(item.GetSurfaces()) != 1 || item.GetSurfaces()[0].GetProviderId() != "provider-openai-default" {
 		t.Fatalf("surfaces = %#v", item.GetSurfaces())
 	}
 	if len(item.GetSurfaces()[0].GetModels()) != 2 || item.GetSurfaces()[0].GetModels()[0] != "gpt-5" {
@@ -78,7 +78,8 @@ func TestRegisterHandlersRejectsInvalidInlineRuntimeSelection(t *testing.T) {
 				"providerId":"codex",
 				"executionClass":"cli-standard",
 				"runtimeConfig":{
-					"providerRuntimeRef":{"surfaceId":"anthropic-default"},
+					"providerId":"provider-anthropic-default",
+					"endpoint":{"type":"PROVIDER_ENDPOINT_TYPE_API","api":{"protocol":"PROTOCOL_ANTHROPIC","baseUrl":"https://api.anthropic.test/v1"}},
 					"primaryModelSelector":{"providerModelId":"claude-3-7-sonnet"}
 				},
 				"resourceConfig":{}
@@ -120,17 +121,6 @@ func newTestSessionRuntimeOptionsService() sessionRuntimeOptionsService {
 				),
 			},
 		},
-		sessionRuntimeCLIDefinitionStub{
-			items: []*managementv1.CLIDefinitionView{{
-				CliId:       "codex",
-				DisplayName: "Codex",
-				ContainerImages: []*managementv1.CLIContainerImageView{
-					{ExecutionClass: "cli-standard"},
-					{ExecutionClass: "cli-long-context"},
-					{ExecutionClass: "cli-sandboxed"},
-				},
-			}},
-		},
 		sessionRuntimeCLIStub{
 			items: []*supportv1.CLI{{
 				CliId:       "codex",
@@ -138,6 +128,11 @@ func newTestSessionRuntimeOptionsService() sessionRuntimeOptionsService {
 				ApiKeyProtocols: []*supportv1.APIKeyProtocolSupport{{
 					Protocol: apiprotocolv1.Protocol_PROTOCOL_OPENAI_RESPONSES,
 				}},
+				ContainerImages: []*supportv1.CLIContainerImage{
+					{ExecutionClass: "cli-standard"},
+					{ExecutionClass: "cli-long-context"},
+					{ExecutionClass: "cli-sandboxed"},
+				},
 			}},
 		},
 		sessionRuntimeImageStub{
@@ -156,29 +151,36 @@ func runtimeOptionInstance(
 	protocol apiprotocolv1.Protocol,
 	models []string,
 ) *managementv1.ProviderView {
-	entries := make([]*providerv1.ProviderModelCatalogEntry, 0, len(models))
+	entries := make([]*providerv1.ProviderModel, 0, len(models))
 	for _, modelID := range models {
-		entries = append(entries, &providerv1.ProviderModelCatalogEntry{ProviderModelId: modelID})
+		entries = append(entries, &providerv1.ProviderModel{ProviderModelId: modelID})
 	}
-	runtime := &providerv1.ProviderSurfaceRuntime{
-		DisplayName: label,
-		Catalog:     &providerv1.ProviderModelCatalog{Models: entries},
-	}
+	endpoint := &providerv1.ProviderEndpoint{}
 	if strings.TrimSpace(cliID) != "" {
-		runtime.Access = &providerv1.ProviderSurfaceRuntime_Cli{
-			Cli: &providerv1.ProviderCLISurfaceRuntime{CliId: strings.TrimSpace(cliID)},
-		}
+		endpoint.Type = providerv1.ProviderEndpointType_PROVIDER_ENDPOINT_TYPE_CLI
+		endpoint.Shape = &providerv1.ProviderEndpoint_Cli{Cli: &providerv1.ProviderCliEndpoint{CliId: strings.TrimSpace(cliID)}}
 	} else {
-		runtime.Access = &providerv1.ProviderSurfaceRuntime_Api{
-			Api: &providerv1.ProviderAPISurfaceRuntime{Protocol: protocol},
-		}
+		endpoint.Type = providerv1.ProviderEndpointType_PROVIDER_ENDPOINT_TYPE_API
+		endpoint.Shape = &providerv1.ProviderEndpoint_Api{Api: &providerv1.ProviderApiEndpoint{
+			Protocol: protocol,
+			BaseUrl:  runtimeOptionBaseURL(protocol),
+		}}
 	}
 	return &managementv1.ProviderView{
-		SurfaceId:     instanceID,
-		DisplayName:   label,
-		ProviderId:    "provider-" + instanceID,
-		ProductInfoId: "vendor-" + instanceID,
-		Runtime:       runtime,
+		SurfaceId:   instanceID,
+		DisplayName: label,
+		ProviderId:  "provider-" + instanceID,
+		Models:      entries,
+		Endpoints:   []*providerv1.ProviderEndpoint{endpoint},
+	}
+}
+
+func runtimeOptionBaseURL(protocol apiprotocolv1.Protocol) string {
+	switch protocol {
+	case apiprotocolv1.Protocol_PROTOCOL_ANTHROPIC:
+		return "https://api.anthropic.test/v1"
+	default:
+		return "https://api.openai.test/v1"
 	}
 }
 
@@ -190,13 +192,6 @@ func (s sessionRuntimeProviderStub) ListProviders(context.Context) ([]*managemen
 	return s.items, nil
 }
 
-type sessionRuntimeCLIDefinitionStub struct {
-	items []*managementv1.CLIDefinitionView
-}
-
-func (s sessionRuntimeCLIDefinitionStub) List(context.Context) ([]*managementv1.CLIDefinitionView, error) {
-	return s.items, nil
-}
 
 type sessionRuntimeCLIStub struct {
 	items []*supportv1.CLI

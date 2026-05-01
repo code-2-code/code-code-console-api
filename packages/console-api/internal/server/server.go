@@ -14,7 +14,6 @@ import (
 	"code-code.internal/console-api/internal/platformclient"
 	"code-code.internal/console-api/internal/providers"
 	"code-code.internal/console-api/internal/referencedata"
-	"code-code.internal/console-api/internal/templates"
 	agentprofilev1 "code-code.internal/go-contract/platform/agent_profile/v1"
 	managementv1 "code-code.internal/go-contract/platform/management/v1"
 	mcpv1 "code-code.internal/go-contract/platform/mcp/v1"
@@ -26,10 +25,9 @@ import (
 
 // Config groups dependencies required to assemble the console API.
 type Config struct {
-	Platform               *platformclient.Client
-	PrometheusBaseURL      string
-	ModelConnectBaseURL    string
-	ProviderConnectBaseURL string
+	Platform            *platformclient.Client
+	PrometheusBaseURL   string
+	ModelConnectBaseURL string
 }
 
 // Server bundles the HTTP handler.
@@ -43,8 +41,7 @@ func New(config Config) (*Server, error) {
 		return nil, fmt.Errorf("consoleapi/server: platform client is nil")
 	}
 	connectHandler, err := connectproxy.NewHandler(connectproxy.Config{
-		ModelBaseURL:    config.ModelConnectBaseURL,
-		ProviderBaseURL: config.ProviderConnectBaseURL,
+		ModelBaseURL: config.ModelConnectBaseURL,
 	})
 	if err != nil {
 		return nil, err
@@ -112,8 +109,7 @@ func New(config Config) (*Server, error) {
 	providers.RegisterObservabilityHandlers(mux, observabilityService)
 	egresspolicies.RegisterHandlers(mux, config.Platform.EgressPolicies())
 	oauthsessions.RegisterHandlers(mux, config.Platform.OAuthSessions())
-	templates.RegisterHandlers(mux, config.Platform.Templates())
-	referencedata.RegisterCLIDefinitionHandlers(mux, config.Platform.CLIDefinitions())
+	referencedata.RegisterCLIDefinitionHandlers(mux, config.Platform.SupportResources())
 	referencedata.RegisterSupportResourceHandlers(mux, config.Platform.SupportResources())
 	return &Server{Handler: httpjson.WithCORS(mux)}, nil
 }
@@ -121,22 +117,30 @@ func New(config Config) (*Server, error) {
 func registerCRUDHandlers(mux *http.ServeMux, platform *platformclient.Client) {
 	crudhandler.Register(mux, platform.AgentProfiles(), crudhandler.Config[*managementv1.AgentProfileListItem, *agentprofilev1.AgentProfile, *managementv1.UpsertAgentProfileRequest]{
 		ResourceName: "agent-profiles",
-		WrapList:     func(items []*managementv1.AgentProfileListItem) proto.Message { return &managementv1.ListAgentProfilesResponse{Items: items} },
-		NewRequest:   func() *managementv1.UpsertAgentProfileRequest { return &managementv1.UpsertAgentProfileRequest{} },
+		WrapList: func(items []*managementv1.AgentProfileListItem) proto.Message {
+			return &managementv1.ListAgentProfilesResponse{Items: items}
+		},
+		NewRequest: func() *managementv1.UpsertAgentProfileRequest { return &managementv1.UpsertAgentProfileRequest{} },
 	})
 	crudhandler.Register(mux, platform.MCPServers(), crudhandler.Config[*managementv1.MCPServerListItem, *mcpv1.MCPServer, *managementv1.UpsertMCPServerRequest]{
 		ResourceName: "mcps",
-		WrapList:     func(items []*managementv1.MCPServerListItem) proto.Message { return &managementv1.ListMCPServersResponse{Items: items} },
-		NewRequest:   func() *managementv1.UpsertMCPServerRequest { return &managementv1.UpsertMCPServerRequest{} },
+		WrapList: func(items []*managementv1.MCPServerListItem) proto.Message {
+			return &managementv1.ListMCPServersResponse{Items: items}
+		},
+		NewRequest: func() *managementv1.UpsertMCPServerRequest { return &managementv1.UpsertMCPServerRequest{} },
 	})
 	crudhandler.Register(mux, platform.Skills(), crudhandler.Config[*managementv1.SkillListItem, *skillv1.Skill, *managementv1.UpsertSkillRequest]{
 		ResourceName: "skills",
-		WrapList:     func(items []*managementv1.SkillListItem) proto.Message { return &managementv1.ListSkillsResponse{Items: items} },
-		NewRequest:   func() *managementv1.UpsertSkillRequest { return &managementv1.UpsertSkillRequest{} },
+		WrapList: func(items []*managementv1.SkillListItem) proto.Message {
+			return &managementv1.ListSkillsResponse{Items: items}
+		},
+		NewRequest: func() *managementv1.UpsertSkillRequest { return &managementv1.UpsertSkillRequest{} },
 	})
 	crudhandler.Register(mux, platform.Rules(), crudhandler.Config[*managementv1.RuleListItem, *rulev1.Rule, *managementv1.UpsertRuleRequest]{
 		ResourceName: "rules",
-		WrapList:     func(items []*managementv1.RuleListItem) proto.Message { return &managementv1.ListRulesResponse{Items: items} },
-		NewRequest:   func() *managementv1.UpsertRuleRequest { return &managementv1.UpsertRuleRequest{} },
+		WrapList: func(items []*managementv1.RuleListItem) proto.Message {
+			return &managementv1.ListRulesResponse{Items: items}
+		},
+		NewRequest: func() *managementv1.UpsertRuleRequest { return &managementv1.UpsertRuleRequest{} },
 	})
 }

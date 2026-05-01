@@ -2,7 +2,7 @@ package providers
 
 type ProviderObservabilityProbeAllResponse struct {
 	TriggeredCount int                               `json:"triggeredCount"`
-	WorkflowID     string                            `json:"workflowId,omitempty"`
+	ProbeID        string                            `json:"probeId,omitempty"`
 	Message        string                            `json:"message,omitempty"`
 	Results        []ProviderObservabilityProbeState `json:"results,omitempty"`
 }

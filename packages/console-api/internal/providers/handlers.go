@@ -6,16 +6,19 @@ import (
 	"strings"
 
 	"code-code.internal/console-api/internal/httpjson"
+	"code-code.internal/console-api/internal/platformclient"
 	managementv1 "code-code.internal/go-contract/platform/management/v1"
-	providerv1 "code-code.internal/go-contract/provider/v1"
+	supportv1 "code-code.internal/go-contract/platform/support/v1"
 )
 
 type providerService interface {
-	ListProviderSurfaceMetadata(context.Context) ([]*providerv1.ProviderSurface, error)
+	ListProviderSurfaceMetadata(context.Context) ([]*supportv1.Surface, error)
 	ListProviders(context.Context) ([]*managementv1.ProviderView, error)
 	UpdateProvider(context.Context, string, *managementv1.UpdateProviderRequest) (*managementv1.ProviderView, error)
 	UpdateProviderAuthentication(context.Context, string, *managementv1.UpdateProviderAuthenticationRequest) (*managementv1.UpdateProviderAuthenticationResponse, error)
 	UpdateProviderObservabilityAuthentication(context.Context, string, *managementv1.UpdateProviderObservabilityAuthenticationRequest) (*managementv1.ProviderView, error)
+	GetProviderAuthenticationSummary(context.Context, string) (*platformclient.ProviderAuthenticationSummary, error)
+	ProbeProviderModelCatalog(context.Context, string) (*managementv1.ProbeProviderModelCatalogResponse, error)
 	DeleteProvider(context.Context, string) error
 	Connect(context.Context, *managementv1.ConnectProviderRequest) (*managementv1.ConnectProviderResponse, error)
 	GetConnectSession(context.Context, string) (*managementv1.ProviderConnectSessionView, error)
@@ -62,6 +65,42 @@ func RegisterHandlers(mux *http.ServeMux, service providerService) {
 		rest := strings.TrimPrefix(r.URL.Path, "/api/providers/")
 		if rest == "" {
 			httpjson.WriteError(w, http.StatusNotFound, "not_found", "provider route not found")
+			return
+		}
+		if strings.HasSuffix(rest, "/authentication-summary") {
+			providerID := strings.TrimSuffix(rest, "/authentication-summary")
+			if providerID == "" || strings.Contains(providerID, "/") {
+				httpjson.WriteError(w, http.StatusNotFound, "not_found", "provider route not found")
+				return
+			}
+			if r.Method != http.MethodGet {
+				httpjson.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+				return
+			}
+			response, err := service.GetProviderAuthenticationSummary(r.Context(), providerID)
+			if err != nil {
+				httpjson.WriteServiceError(w, http.StatusBadRequest, "get_provider_authentication_summary_failed", err)
+				return
+			}
+			httpjson.WriteJSON(w, http.StatusOK, response)
+			return
+		}
+		if strings.HasSuffix(rest, "/model-catalog:probe") {
+			providerID := strings.TrimSuffix(rest, "/model-catalog:probe")
+			if providerID == "" || strings.Contains(providerID, "/") {
+				httpjson.WriteError(w, http.StatusNotFound, "not_found", "provider route not found")
+				return
+			}
+			if r.Method != http.MethodPost {
+				httpjson.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+				return
+			}
+			response, err := service.ProbeProviderModelCatalog(r.Context(), providerID)
+			if err != nil {
+				httpjson.WriteServiceError(w, http.StatusBadRequest, "probe_provider_model_catalog_failed", err)
+				return
+			}
+			httpjson.WriteProtoJSON(w, http.StatusOK, response)
 			return
 		}
 		if strings.HasSuffix(rest, "/observability-authentication") {

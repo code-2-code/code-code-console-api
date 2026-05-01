@@ -20,7 +20,7 @@ func (s *ObservabilityService) buildSummaryCard(
 	}
 	activeMatcher := promActiveDiscoveryMatcher(subject)
 	runtimeMatcher := promRuntimeMatcher(subject)
-	if subject.supportsActiveQuery {
+	if subject.supportsQuotaQuery {
 		outcomes, err := s.queryLabelValues(
 			ctx,
 			fmt.Sprintf(
@@ -96,7 +96,7 @@ func (s *ObservabilityService) buildProviderItem(
 	activeMatcher := promActiveDiscoveryMatcher(subject)
 	runtimeMatcher := promRuntimeMatcher(subject)
 	var err error
-	if subject.supportsActiveQuery && view.includesFullDetail() {
+	if subject.supportsQuotaQuery && view.includesFullDetail() {
 		item.ProbeOutcomes, err = s.queryLabelValues(
 			ctx,
 			fmt.Sprintf(
@@ -120,10 +120,10 @@ func (s *ObservabilityService) buildProviderItem(
 			return ProviderCLIObservabilityItem{}, err
 		}
 	}
-	if subject.supportsActiveQuery && view.includesObservedAt() {
+	if subject.supportsQuotaQuery && view.includesObservedAt() {
 		item.LastProbeRun, item.LastProbeOutcome, item.LastProbeReason, item.NextProbeAllowed, err = s.queryLatestActiveDiscoveryStatus(ctx, subject, activeMatcher, window)
 	}
-	if subject.supportsActiveQuery && view.includesStatus() {
+	if subject.supportsQuotaQuery && view.includesStatus() {
 		if err != nil {
 			return ProviderCLIObservabilityItem{}, err
 		}
@@ -325,7 +325,7 @@ func splitRuntimeGaugeDescriptors(descriptors []runtimeMetricDescriptor) ([]runt
 	runtimeDescriptors := make([]runtimeMetricDescriptor, 0, len(descriptors))
 	activeDescriptors := make([]runtimeMetricDescriptor, 0, len(descriptors))
 	for _, descriptor := range descriptors {
-		if descriptor.activeQuery {
+		if descriptor.quotaQuery {
 			activeDescriptors = append(activeDescriptors, descriptor)
 			continue
 		}
@@ -569,7 +569,7 @@ func (s *ObservabilityService) queryLatestActiveDiscoveryStatus(
 	for _, sample := range selectedRuns {
 		seriesKey := promSeriesKey(sample.Metric)
 		groupKey := activeDiscoveryGroupKey(sample.Metric)
-		surfaceID := strings.TrimSpace(sample.Metric["surface_id"])
+		surfaceID := metricSurfaceIdentity(sample.Metric)
 		runs = append(runs, SurfaceTimestamp{
 			SurfaceID: surfaceID,
 			Timestamp: formatPromTimestamp(sample.Value),
@@ -676,14 +676,8 @@ func promSeriesKey(metric map[string]string) string {
 	return strings.Join(parts, ",")
 }
 
-func probeLastOutcomeMetric(subject *cliSubject) string {
-	if subject == nil {
-		return ""
-	}
-	if subject.owner == ownerKindVendor {
-		return vendorProbeLastOutcomeMetric
-	}
-	return cliProbeLastOutcomeMetric
+func probeLastOutcomeMetric(_ *cliSubject) string {
+	return surfaceProbeLastOutcomeMetric
 }
 
 func (s *ObservabilityService) queryInstanceReadiness(ctx context.Context, query string) ([]SurfaceReadiness, error) {
@@ -694,7 +688,7 @@ func (s *ObservabilityService) queryInstanceReadiness(ctx context.Context, query
 	items := make([]SurfaceReadiness, 0, len(samples))
 	for _, sample := range samples {
 		items = append(items, SurfaceReadiness{
-			SurfaceID: strings.TrimSpace(sample.Metric["surface_id"]),
+			SurfaceID: metricSurfaceIdentity(sample.Metric),
 			Value:     sample.Value,
 		})
 	}
@@ -712,7 +706,7 @@ func (s *ObservabilityService) queryInstanceValues(ctx context.Context, query st
 	items := make([]SurfaceValue, 0, len(samples))
 	for _, sample := range samples {
 		items = append(items, SurfaceValue{
-			SurfaceID: strings.TrimSpace(sample.Metric["surface_id"]),
+			SurfaceID: metricSurfaceIdentity(sample.Metric),
 			Value:     sample.Value,
 		})
 	}
@@ -759,6 +753,16 @@ func copyMetricLabels(source map[string]string) map[string]string {
 		return nil
 	}
 	return labels
+}
+
+func metricSurfaceIdentity(metric map[string]string) string {
+	if len(metric) == 0 {
+		return ""
+	}
+	if surfaceID := strings.TrimSpace(metric["surface_id"]); surfaceID != "" {
+		return surfaceID
+	}
+	return strings.TrimSpace(metric["provider_id"])
 }
 
 func isRuntimeGaugeInfrastructureLabel(label string) bool {

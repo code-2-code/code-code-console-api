@@ -29,6 +29,7 @@ var semanticProviderMetricStorageNames = map[string]string{
 	"gen_ai.provider.runtime.retry_after.seconds":         "gen_ai_provider_runtime_retry_after_seconds",
 	"gen_ai.provider.usage.requests.count":                "gen_ai_provider_usage_requests_count",
 	"gen_ai.provider.usage.tokens.count":                  "gen_ai_provider_usage_tokens_count",
+	"gen_ai.provider.usage.cost":                          "gen_ai_provider_usage_cost",
 	"gen_ai.provider.usage.cost.usd":                      "gen_ai_provider_usage_cost_usd",
 }
 
@@ -49,6 +50,7 @@ var storageProviderMetricSemanticNames = map[string]string{
 	"gen_ai_provider_runtime_retry_after_seconds":         "gen_ai.provider.runtime.retry_after.seconds",
 	"gen_ai_provider_usage_requests_count":                "gen_ai.provider.usage.requests.count",
 	"gen_ai_provider_usage_tokens_count":                  "gen_ai.provider.usage.tokens.count",
+	"gen_ai_provider_usage_cost":                          "gen_ai.provider.usage.cost",
 	"gen_ai_provider_usage_cost_usd":                      "gen_ai.provider.usage.cost.usd",
 }
 

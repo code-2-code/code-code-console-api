@@ -19,7 +19,7 @@ func TestCanonicalObservabilityMetricName(t *testing.T) {
 		}
 	})
 
-	t.Run("provider runtime rate limit metric", func(t *testing.T) {
+	t.Run("provider endpoint rate limit metric", func(t *testing.T) {
 		got := canonicalObservabilityMetricName("gen_ai_provider_runtime_rate_limit_remaining")
 		want := "gen_ai.provider.runtime.rate_limit.remaining"
 		if got != want {
@@ -45,7 +45,7 @@ func TestStorageObservabilityMetricName(t *testing.T) {
 		}
 	})
 
-	t.Run("provider runtime rate limit metric", func(t *testing.T) {
+	t.Run("provider endpoint rate limit metric", func(t *testing.T) {
 		got := storageObservabilityMetricName("gen_ai.provider.runtime.rate_limit.remaining")
 		want := "gen_ai_provider_runtime_rate_limit_remaining"
 		if got != want {

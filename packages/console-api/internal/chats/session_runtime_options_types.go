@@ -14,9 +14,10 @@ type sessionRuntimeProviderOption struct {
 }
 
 type sessionRuntimeSurfaceOption struct {
-	RuntimeRef *providerv1.ProviderRuntimeRef `json:"runtimeRef"`
-	Label      string                         `json:"label"`
-	Models     []string                       `json:"models"`
+	ProviderID string                       `json:"providerId"`
+	Endpoint   *providerv1.ProviderEndpoint `json:"endpoint"`
+	Label      string                       `json:"label"`
+	Models     []string                     `json:"models"`
 }
 
 type runtimeCatalog struct {
@@ -30,6 +31,7 @@ type runtimeProviderCatalog struct {
 }
 
 type runtimeSurfaceCatalog struct {
-	runtimeRef *providerv1.ProviderRuntimeRef
+	providerID string
+	endpoint   *providerv1.ProviderEndpoint
 	models     map[string]struct{}
 }

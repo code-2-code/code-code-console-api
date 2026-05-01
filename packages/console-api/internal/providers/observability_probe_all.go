@@ -40,10 +40,7 @@ func (s *ObservabilityService) ProbeAll(ctx context.Context) (*ProviderObservabi
 	return &ProviderObservabilityProbeAllResponse{
 		TriggeredCount: len(targets),
 		Message:        strings.TrimSpace(response.GetMessage()),
-		Results: []ProviderObservabilityProbeState{{
-			Outcome: providerservicev1.ProviderOAuthObservabilityProbeOutcome_PROVIDER_O_AUTH_OBSERVABILITY_PROBE_OUTCOME_UNSPECIFIED.String(),
-			Message: strings.TrimSpace(response.GetMessage()),
-		}},
+		Results:        []ProviderObservabilityProbeState{probeStateFromResponse(response)},
 	}, nil
 }
 
@@ -64,13 +61,25 @@ func (s *ObservabilityService) ProbeProviders(ctx context.Context, providerIDs [
 	}
 	return &ProviderObservabilityProbeAllResponse{
 		TriggeredCount: len(ids),
-		WorkflowID:     strings.TrimSpace(response.GetWorkflowId()),
+		ProbeID:        strings.TrimSpace(response.GetProbeId()),
 		Message:        strings.TrimSpace(response.GetMessage()),
-		Results: []ProviderObservabilityProbeState{{
-			Outcome: providerservicev1.ProviderOAuthObservabilityProbeOutcome_PROVIDER_O_AUTH_OBSERVABILITY_PROBE_OUTCOME_UNSPECIFIED.String(),
-			Message: strings.TrimSpace(response.GetMessage()),
-		}},
+		Results:        []ProviderObservabilityProbeState{probeStateFromResponse(response)},
 	}, nil
+}
+
+func probeStateFromResponse(response *managementv1.ProbeProviderObservabilityResponse) ProviderObservabilityProbeState {
+	if response == nil {
+		return ProviderObservabilityProbeState{
+			Outcome: providerservicev1.ProviderOAuthObservabilityProbeOutcome_PROVIDER_O_AUTH_OBSERVABILITY_PROBE_OUTCOME_UNSPECIFIED.String(),
+		}
+	}
+	return ProviderObservabilityProbeState{
+		ProviderID:    strings.TrimSpace(response.GetProviderId()),
+		Outcome:       response.GetOutcome().String(),
+		Message:       strings.TrimSpace(response.GetMessage()),
+		LastAttemptAt: strings.TrimSpace(response.GetLastAttemptAt()),
+		NextAllowedAt: strings.TrimSpace(response.GetNextAllowedAt()),
+	}
 }
 
 func providerProbeTargetIDs(targets []providerProbeTarget) []string {
@@ -110,8 +119,7 @@ func sortedProviderProbeTargets(providers []*managementv1.ProviderView) []provid
 		if providerID == "" || strings.TrimSpace(provider.GetSurfaceId()) == "" {
 			continue
 		}
-		owner := providerSurfaceOwnerFromProvider(provider)
-		if owner.kind == "" || owner.id == "" {
+		if len(provider.GetEndpoints()) == 0 {
 			continue
 		}
 		target := providerProbeTarget{providerID: providerID}

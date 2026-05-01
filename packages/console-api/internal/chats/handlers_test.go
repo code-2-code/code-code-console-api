@@ -239,7 +239,8 @@ func TestRegisterHandlersInlineChatUpdate(t *testing.T) {
 		ProviderId:     "codex",
 		ExecutionClass: "cli-standard",
 		RuntimeConfig: &agentsessionv1.AgentSessionRuntimeConfig{
-			ProviderRuntimeRef: &providerv1.ProviderRuntimeRef{SurfaceId: "primary-1"},
+			ProviderId: "primary-1",
+			Endpoint:   testCLIEndpoint("codex"),
 		},
 		ResourceConfig: &capv1.AgentResources{
 			SnapshotId: "old",
@@ -257,9 +258,10 @@ func TestRegisterHandlersInlineChatUpdate(t *testing.T) {
 			"mode":"inline",
 			"inline":{
 				"runtimeConfig":{
-					"providerRuntimeRef":{"surfaceId":"primary-2"},
+					"providerId":"primary-2",
+					"endpoint":{"type":"PROVIDER_ENDPOINT_TYPE_CLI","cli":{"cliId":"codex"}},
 					"primaryModelSelector":{"providerModelId":"gpt-4.1"},
-					"fallbacks":[{"providerRuntimeRef":{"surfaceId":"fallback-1"},"providerModelId":"gpt-4.1-mini"}]
+					"fallbacks":[{"providerId":"fallback-1","endpoint":{"type":"PROVIDER_ENDPOINT_TYPE_CLI","cli":{"cliId":"codex"}},"providerModelId":"gpt-4.1-mini"}]
 				}
 			}
 		}
@@ -279,7 +281,7 @@ func TestRegisterHandlersInlineChatUpdate(t *testing.T) {
 	if got, want := sessions.lastUpdateExecutionClass, "cli-standard"; got != want {
 		t.Fatalf("update execution_class = %q, want %q", got, want)
 	}
-	if got := sessions.lastUpdateRuntimeConfig.GetProviderRuntimeRef().GetSurfaceId(); got != "primary-2" {
+	if got := sessions.lastUpdateRuntimeConfig.GetProviderId(); got != "primary-2" {
 		t.Fatalf("update runtime primary = %q, want primary-2", got)
 	}
 	if got := sessions.lastUpdateResourceConfig.GetSnapshotId(); got == "" {
@@ -295,7 +297,8 @@ func TestRegisterHandlersInlineChatUpdateUsesSessionRepoSpec(t *testing.T) {
 		ProviderId:     "codex",
 		ExecutionClass: "cli-standard",
 		RuntimeConfig: &agentsessionv1.AgentSessionRuntimeConfig{
-			ProviderRuntimeRef: &providerv1.ProviderRuntimeRef{SurfaceId: "primary-1"},
+			ProviderId: "primary-1",
+			Endpoint:   testCLIEndpoint("codex"),
 		},
 		ResourceConfig: &capv1.AgentResources{
 			Instructions: []*capv1.InstructionResource{
@@ -311,7 +314,7 @@ func TestRegisterHandlersInlineChatUpdateUsesSessionRepoSpec(t *testing.T) {
 		"sessionSetup":{
 			"mode":"inline",
 			"inline":{
-				"runtimeConfig":{"providerRuntimeRef":{"surfaceId":"primary-2"}},
+				"runtimeConfig":{"providerId":"primary-2","endpoint":{"type":"PROVIDER_ENDPOINT_TYPE_CLI","cli":{"cliId":"codex"}}},
 				"resourceConfig":{"instructions":[{"kind":"INSTRUCTION_KIND_RULE","name":"rule","content":"new"}]}
 			}
 		}
@@ -326,7 +329,7 @@ func TestRegisterHandlersInlineChatUpdateUsesSessionRepoSpec(t *testing.T) {
 	if got, want := sessions.lastUpdateProviderID, "codex"; got != want {
 		t.Fatalf("update provider_id = %q, want %q", got, want)
 	}
-	if got, want := sessions.lastUpdateRuntimeConfig.GetProviderRuntimeRef().GetSurfaceId(), "primary-2"; got != want {
+	if got, want := sessions.lastUpdateRuntimeConfig.GetProviderId(), "primary-2"; got != want {
 		t.Fatalf("update runtime primary = %q, want %q", got, want)
 	}
 }
@@ -340,7 +343,8 @@ func TestUpsertInlineChatUpdateUsesBoundSessionID(t *testing.T) {
 			ProviderId:     "codex",
 			ExecutionClass: "cli-standard",
 			RuntimeConfig: &agentsessionv1.AgentSessionRuntimeConfig{
-				ProviderRuntimeRef: &providerv1.ProviderRuntimeRef{SurfaceId: "primary-1"},
+				ProviderId: "primary-1",
+				Endpoint:   testCLIEndpoint("codex"),
 			},
 			WorkspaceRef: &agentsessionv1.AgentSessionWorkspaceRef{WorkspaceId: "session-1-workspace"},
 			HomeStateRef: &agentsessionv1.AgentSessionHomeStateRef{HomeStateId: "session-1-home"},
@@ -352,7 +356,7 @@ func TestUpsertInlineChatUpdateUsesBoundSessionID(t *testing.T) {
 		SessionSetup: putChatSessionSetup{
 			Mode: chatModeInline,
 			Inline: &putInlineChatRequest{
-				RuntimeConfig: json.RawMessage(`{"providerRuntimeRef":{"surfaceId":"primary-2"}}`),
+				RuntimeConfig: json.RawMessage(`{"providerId":"primary-2","endpoint":{"type":"PROVIDER_ENDPOINT_TYPE_CLI","cli":{"cliId":"codex"}}}`),
 			},
 		},
 	})
@@ -364,6 +368,15 @@ func TestUpsertInlineChatUpdateUsesBoundSessionID(t *testing.T) {
 	}
 	if got, want := chats.updated.GetWorkspaceRef().GetWorkspaceId(), "session-1-workspace"; got != want {
 		t.Fatalf("updated workspace_id = %q, want %q", got, want)
+	}
+}
+
+func testCLIEndpoint(cliID string) *providerv1.ProviderEndpoint {
+	return &providerv1.ProviderEndpoint{
+		Type: providerv1.ProviderEndpointType_PROVIDER_ENDPOINT_TYPE_CLI,
+		Shape: &providerv1.ProviderEndpoint_Cli{Cli: &providerv1.ProviderCliEndpoint{
+			CliId: cliID,
+		}},
 	}
 }
 

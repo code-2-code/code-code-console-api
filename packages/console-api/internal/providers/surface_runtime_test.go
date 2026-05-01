@@ -2,22 +2,20 @@ package providers
 
 import providerv1 "code-code.internal/go-contract/provider/v1"
 
-func testCLIProviderSurfaceRuntime(cliID string) *providerv1.ProviderSurfaceRuntime {
-	return &providerv1.ProviderSurfaceRuntime{
-		DisplayName: cliID,
-		Origin:      providerv1.ProviderSurfaceOrigin_PROVIDER_SURFACE_ORIGIN_DERIVED,
-		Access: &providerv1.ProviderSurfaceRuntime_Cli{
-			Cli: &providerv1.ProviderCLISurfaceRuntime{CliId: cliID},
-		},
+func testCLIProviderEndpoint(cliID string) *providerv1.ProviderEndpoint {
+	return &providerv1.ProviderEndpoint{
+		Type: providerv1.ProviderEndpointType_PROVIDER_ENDPOINT_TYPE_CLI,
+		Shape: &providerv1.ProviderEndpoint_Cli{Cli: &providerv1.ProviderCliEndpoint{
+			CliId: cliID,
+		}},
 	}
 }
 
-func testAPIProviderSurfaceRuntime() *providerv1.ProviderSurfaceRuntime {
-	return &providerv1.ProviderSurfaceRuntime{
-		DisplayName: "api",
-		Origin:      providerv1.ProviderSurfaceOrigin_PROVIDER_SURFACE_ORIGIN_DERIVED,
-		Access: &providerv1.ProviderSurfaceRuntime_Api{
-			Api: &providerv1.ProviderAPISurfaceRuntime{},
-		},
+func testAPIProviderEndpoint() *providerv1.ProviderEndpoint {
+	return &providerv1.ProviderEndpoint{
+		Type: providerv1.ProviderEndpointType_PROVIDER_ENDPOINT_TYPE_API,
+		Shape: &providerv1.ProviderEndpoint_Api{Api: &providerv1.ProviderApiEndpoint{
+			BaseUrl: "https://api.provider.test/v1",
+		}},
 	}
 }

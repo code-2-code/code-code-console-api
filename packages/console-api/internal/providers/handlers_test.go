@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	credentialv1 "code-code.internal/go-contract/credential/v1"
+	"code-code.internal/console-api/internal/platformclient"
 	managementv1 "code-code.internal/go-contract/platform/management/v1"
 	providerservicev1 "code-code.internal/go-contract/platform/provider/v1"
-	providerv1 "code-code.internal/go-contract/provider/v1"
+	supportv1 "code-code.internal/go-contract/platform/support/v1"
 )
 
 func newTestService() providerManagementStub {
@@ -134,16 +134,54 @@ func TestRegisterHandlersUpdateProviderObservabilityAuthenticationRoute(t *testi
 	}
 }
 
+func TestRegisterHandlersGetProviderAuthenticationSummaryRoute(t *testing.T) {
+	service := newTestService()
+
+	mux := http.NewServeMux()
+	RegisterHandlers(mux, service)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/providers/provider-1/authentication-summary", nil)
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"fieldId":"project_id"`) {
+		t.Fatalf("response = %s", recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"value":"projects/123"`) {
+		t.Fatalf("response = %s", recorder.Body.String())
+	}
+}
+
+func TestRegisterHandlersProbeProviderModelCatalogRoute(t *testing.T) {
+	service := newTestService()
+
+	mux := http.NewServeMux()
+	RegisterHandlers(mux, service)
+
+	request := httptest.NewRequest(http.MethodPost, "/api/providers/provider-1/model-catalog:probe", nil)
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"providerId":"provider-1"`) {
+		t.Fatalf("response = %s", recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"message":"provider model catalog probe completed"`) {
+		t.Fatalf("response = %s", recorder.Body.String())
+	}
+}
+
 type providerManagementStub struct{}
 
-func (providerManagementStub) ListProviderSurfaceMetadata(context.Context) ([]*providerv1.ProviderSurface, error) {
-	return []*providerv1.ProviderSurface{{
-		SurfaceId:   "openai-compatible",
-		DisplayName: "OpenAI Compatible",
-		Kind:        providerv1.ProviderSurfaceKind_PROVIDER_SURFACE_KIND_API,
-		SupportedCredentialKinds: []credentialv1.CredentialKind{
-			credentialv1.CredentialKind_CREDENTIAL_KIND_API_KEY,
-		},
+func (providerManagementStub) ListProviderSurfaceMetadata(context.Context) ([]*supportv1.Surface, error) {
+	return []*supportv1.Surface{{
+		SurfaceId:     "openai-compatible",
+		ProductInfoId: "openai",
 	}}, nil
 }
 
@@ -165,6 +203,30 @@ func (providerManagementStub) UpdateProviderAuthentication(_ context.Context, pr
 
 func (providerManagementStub) UpdateProviderObservabilityAuthentication(_ context.Context, providerID string, _ *managementv1.UpdateProviderObservabilityAuthenticationRequest) (*managementv1.ProviderView, error) {
 	return &managementv1.ProviderView{ProviderId: providerID, DisplayName: "OpenAI"}, nil
+}
+
+func (providerManagementStub) GetProviderAuthenticationSummary(_ context.Context, providerID string) (*platformclient.ProviderAuthenticationSummary, error) {
+	return &platformclient.ProviderAuthenticationSummary{
+		Provider: &platformclient.CredentialSubjectSummary{
+			CredentialID: providerID + "-credential",
+		},
+		Observability: &platformclient.CredentialSubjectSummary{
+			CredentialID: providerID + "-observability",
+			Fields: []platformclient.CredentialSubjectSummaryField{{
+				FieldID: "project_id",
+				Label:   "Project ID",
+				Value:   "projects/123",
+			}},
+		},
+	}, nil
+}
+
+func (providerManagementStub) ProbeProviderModelCatalog(_ context.Context, providerID string) (*managementv1.ProbeProviderModelCatalogResponse, error) {
+	return &managementv1.ProbeProviderModelCatalogResponse{
+		ProviderId:  providerID,
+		ProviderIds: []string{providerID},
+		Message:     "provider model catalog probe completed",
+	}, nil
 }
 
 func (providerManagementStub) DeleteProvider(context.Context, string) error { return nil }

@@ -27,23 +27,23 @@ func validateInlineSpecAgainstCatalog(spec *agentsessionv1.AgentSessionSpec, cat
 	if runtimeConfig == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "inline.runtimeConfig is required")
 	}
-	if err := validateRuntimeSurface(provider, "inline.runtimeConfig", runtimeConfig.GetProviderRuntimeRef(), primaryModelID(runtimeConfig)); err != nil {
+	if err := validateRuntimeSurface(provider, "inline.runtimeConfig", runtimeConfig.GetProviderId(), runtimeConfig.GetEndpoint(), primaryModelID(runtimeConfig)); err != nil {
 		return err
 	}
 	for index, item := range runtimeConfig.GetFallbacks() {
 		path := "inline.runtimeConfig.fallbacks[" + strconv.Itoa(index) + "]"
-		if err := validateRuntimeSurface(provider, path, item.GetProviderRuntimeRef(), fallbackModelID(item)); err != nil {
+		if err := validateRuntimeSurface(provider, path, item.GetProviderId(), item.GetEndpoint(), fallbackModelID(item)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateRuntimeSurface(provider runtimeProviderCatalog, path string, runtimeRef *providerv1.ProviderRuntimeRef, modelID string) error {
-	key := runtimeRefCatalogKey(runtimeRef)
+func validateRuntimeSurface(provider runtimeProviderCatalog, path string, providerID string, endpoint *providerv1.ProviderEndpoint, modelID string) error {
+	key := runtimeEndpointCatalogKey(providerID, endpoint)
 	surface, ok := provider.surfaces[key]
 	if !ok {
-		return grpcstatus.Errorf(codes.InvalidArgument, "%s.providerRuntimeRef is not selectable", path)
+		return grpcstatus.Errorf(codes.InvalidArgument, "%s.endpoint is not selectable", path)
 	}
 	if _, ok := surface.models[strings.TrimSpace(modelID)]; !ok {
 		return grpcstatus.Errorf(codes.InvalidArgument, "%s.model %q is not selectable", path, strings.TrimSpace(modelID))

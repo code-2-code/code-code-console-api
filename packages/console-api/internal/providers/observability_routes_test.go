@@ -13,6 +13,7 @@ import (
 	managementv1 "code-code.internal/go-contract/platform/management/v1"
 	providerservicev1 "code-code.internal/go-contract/platform/provider/v1"
 	supportv1 "code-code.internal/go-contract/platform/support/v1"
+	providerv1 "code-code.internal/go-contract/provider/v1"
 	vendordefinitionv1 "code-code.internal/go-contract/vendor_definition/v1"
 )
 
@@ -122,12 +123,11 @@ func TestRegisterObservabilityHandlersProbeAllIncludesVendorTarget(t *testing.T)
 			items: []*managementv1.ProviderView{{
 				ProviderId: "provider-cli",
 				SurfaceId:  "provider-openai",
-				Runtime:    testCLIProviderSurfaceRuntime("codex"),
+				Endpoints:  []*providerv1.ProviderEndpoint{testCLIProviderEndpoint("codex")},
 			}, {
-				ProviderId:    "provider-vendor",
-				SurfaceId:     "provider-minimax",
-				ProductInfoId: "minimax",
-				Runtime:       testAPIProviderSurfaceRuntime(),
+				ProviderId: "provider-vendor",
+				SurfaceId:  "provider-minimax",
+				Endpoints:  []*providerv1.ProviderEndpoint{testAPIProviderEndpoint()},
 			}},
 		},
 		Support:    observabilitySupportStub{},
@@ -164,10 +164,9 @@ func TestRegisterObservabilityHandlersSummaryIncludesVendor(t *testing.T) {
 	service, err := NewObservabilityService(ObservabilityServiceConfig{
 		Providers: observabilityProviderListerStub{
 			items: []*managementv1.ProviderView{{
-				ProviderId:    "provider-minimax",
-				SurfaceId:     "provider-minimax",
-				ProductInfoId: "minimax",
-				Runtime:       testAPIProviderSurfaceRuntime(),
+				ProviderId: "provider-minimax",
+				SurfaceId:  "provider-minimax",
+				Endpoints:  []*providerv1.ProviderEndpoint{testAPIProviderEndpoint()},
 			}},
 		},
 		Support: observabilitySupportStub{
@@ -176,14 +175,16 @@ func TestRegisterObservabilityHandlersSummaryIncludesVendor(t *testing.T) {
 					VendorId:    "minimax",
 					DisplayName: "MiniMax",
 				},
-				ProviderBindings: []*supportv1.VendorProviderBinding{{
+				Surfaces: []*supportv1.Surface{{
+					SurfaceId:     "provider-minimax",
+					ProductInfoId: "minimax",
 					Observability: &observabilityv1.ObservabilityCapability{
 						Profiles: []*observabilityv1.ObservabilityProfile{{
 							Metrics: []*observabilityv1.ObservabilityMetric{{
 								Name: "gen_ai.provider.quota.remaining",
 							}},
-							Collection: &observabilityv1.ObservabilityProfile_ActiveQuery{
-								ActiveQuery: &observabilityv1.ActiveQueryCollection{},
+							Collection: &observabilityv1.ObservabilityProfile_QuotaQuery{
+								QuotaQuery: &observabilityv1.QuotaQueryCollection{},
 							},
 						}},
 					},
@@ -343,7 +344,7 @@ func TestRegisterObservabilityHandlersProviderStatusViewOmitsStaleProbeReasonAft
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200, body=%s", recorder.Code, recorder.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), `"lastProbeOutcome":[{"value":1}]`) {
+	if !strings.Contains(recorder.Body.String(), `"lastProbeOutcome":[{"surfaceId":"provider-openai","value":1}]`) {
 		t.Fatalf("response = %s", recorder.Body.String())
 	}
 	if strings.Contains(recorder.Body.String(), `"lastProbeReason"`) {
@@ -370,10 +371,10 @@ func TestRegisterObservabilityHandlersProviderStatusViewKeepsProbeReasonForFailu
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200, body=%s", recorder.Code, recorder.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), `"lastProbeOutcome":[{"value":5}]`) {
+	if !strings.Contains(recorder.Body.String(), `"lastProbeOutcome":[{"surfaceId":"provider-openai","value":5}]`) {
 		t.Fatalf("response = %s", recorder.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), `"lastProbeReason":[{"reason":"PROBE_FAILED"}]`) {
+	if !strings.Contains(recorder.Body.String(), `"lastProbeReason":[{"surfaceId":"provider-openai","reason":"PROBE_FAILED"}]`) {
 		t.Fatalf("response = %s", recorder.Body.String())
 	}
 }
@@ -401,7 +402,7 @@ func TestRegisterObservabilityHandlersProviderStatusViewOmitsClearedProbeReasonF
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200, body=%s", recorder.Code, recorder.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), `"lastProbeOutcome":[{"value":5}]`) {
+	if !strings.Contains(recorder.Body.String(), `"lastProbeOutcome":[{"surfaceId":"provider-openai","value":5}]`) {
 		t.Fatalf("response = %s", recorder.Body.String())
 	}
 	if strings.Contains(recorder.Body.String(), `"lastProbeReason"`) {
@@ -413,10 +414,9 @@ func TestRegisterObservabilityHandlersProviderCardViewOmitsProbeSeries(t *testin
 	service, err := NewObservabilityService(ObservabilityServiceConfig{
 		Providers: observabilityProviderListerStub{
 			items: []*managementv1.ProviderView{{
-				ProviderId:    "provider-minimax",
-				SurfaceId:     "provider-minimax",
-				ProductInfoId: "minimax",
-				Runtime:       testAPIProviderSurfaceRuntime(),
+				ProviderId: "provider-minimax",
+				SurfaceId:  "provider-minimax",
+				Endpoints:  []*providerv1.ProviderEndpoint{testAPIProviderEndpoint()},
 			}},
 		},
 		Support: observabilitySupportStub{
@@ -425,7 +425,9 @@ func TestRegisterObservabilityHandlersProviderCardViewOmitsProbeSeries(t *testin
 					VendorId:    "minimax",
 					DisplayName: "MiniMax",
 				},
-				ProviderBindings: []*supportv1.VendorProviderBinding{{
+				Surfaces: []*supportv1.Surface{{
+					SurfaceId:     "provider-minimax",
+					ProductInfoId: "minimax",
 					Observability: &observabilityv1.ObservabilityCapability{
 						Profiles: []*observabilityv1.ObservabilityProfile{{
 							Metrics: []*observabilityv1.ObservabilityMetric{{
@@ -433,8 +435,8 @@ func TestRegisterObservabilityHandlersProviderCardViewOmitsProbeSeries(t *testin
 								Kind:     observabilityv1.ObservabilityMetricKind_OBSERVABILITY_METRIC_KIND_GAUGE,
 								Category: observabilityv1.ObservabilityMetricCategory_OBSERVABILITY_METRIC_CATEGORY_QUOTA,
 							}},
-							Collection: &observabilityv1.ObservabilityProfile_ActiveQuery{
-								ActiveQuery: &observabilityv1.ActiveQueryCollection{},
+							Collection: &observabilityv1.ObservabilityProfile_QuotaQuery{
+								QuotaQuery: &observabilityv1.QuotaQueryCollection{},
 							},
 						}},
 					},
@@ -476,7 +478,7 @@ func (s observabilityProviderListerStub) ListProviders(context.Context) ([]*mana
 		{
 			ProviderId: "provider-openai",
 			SurfaceId:  "provider-openai",
-			Runtime:    testCLIProviderSurfaceRuntime("codex"),
+			Endpoints:  []*providerv1.ProviderEndpoint{testCLIProviderEndpoint("codex")},
 		},
 	}, nil
 }
@@ -503,8 +505,8 @@ func (s observabilitySupportStub) ListCLIs(context.Context) ([]*supportv1.CLI, e
 								{Name: refreshReadyMetric},
 								{Name: runtimeRequestsMetric},
 							},
-							Collection: &observabilityv1.ObservabilityProfile_ActiveQuery{
-								ActiveQuery: &observabilityv1.ActiveQueryCollection{},
+							Collection: &observabilityv1.ObservabilityProfile_QuotaQuery{
+								QuotaQuery: &observabilityv1.QuotaQueryCollection{},
 							},
 						},
 					},
@@ -569,33 +571,25 @@ func (s observabilityProbeStub) ProbeProvidersObservability(
 
 func (observabilityPrometheusStub) QueryVector(_ context.Context, query string) ([]promVectorSample, error) {
 	switch {
-	case strings.Contains(query, "gen_ai_provider_cli_oauth_active_operation_runs_total"):
+	case strings.Contains(query, "gen_ai_provider_surface_probe_active_operation_runs_total"):
 		return []promVectorSample{
 			{Metric: map[string]string{"outcome": "executed"}, Value: 2},
 		}, nil
-	case strings.Contains(query, "gen_ai_provider_cli_oauth_active_operation_last_outcome"):
+	case strings.Contains(query, "gen_ai_provider_surface_probe_active_operation_last_outcome"):
 		return []promVectorSample{
 			{Metric: map[string]string{}, Value: 1},
 		}, nil
-	case strings.Contains(query, "gen_ai_provider_cli_oauth_active_operation_auth_usable"):
+	case strings.Contains(query, "gen_ai_provider_surface_probe_active_operation_auth_usable"):
 		return []promVectorSample{
 			{Metric: map[string]string{}, Value: 1},
 		}, nil
-	case strings.Contains(query, "gen_ai_provider_cli_oauth_credential_last_used_timestamp_seconds"):
+	case strings.Contains(query, "gen_ai_provider_surface_probe_credential_last_used_timestamp_seconds"):
 		return []promVectorSample{
 			{Metric: map[string]string{}, Value: 1713452400},
 		}, nil
-	case strings.Contains(query, "gen_ai_provider_cli_oauth_active_operation_last_run_timestamp_seconds"):
+	case strings.Contains(query, "gen_ai_provider_surface_probe_active_operation_last_run_timestamp_seconds"):
 		return []promVectorSample{
 			{Metric: map[string]string{}, Value: 1713452400},
-		}, nil
-	case strings.Contains(query, "gen_ai_provider_vendor_api_key_active_operation_runs_total"):
-		return []promVectorSample{
-			{Metric: map[string]string{"outcome": "executed"}, Value: 1},
-		}, nil
-	case strings.Contains(query, "gen_ai_provider_vendor_api_key_active_operation_last_outcome"):
-		return []promVectorSample{
-			{Metric: map[string]string{}, Value: 1},
 		}, nil
 	case strings.Contains(query, "gen_ai_provider_quota_remaining"):
 		return []promVectorSample{
@@ -623,19 +617,19 @@ func (observabilityPrometheusStub) QueryVector(_ context.Context, query string) 
 func (s observabilityProbeReasonPrometheusStub) QueryVector(_ context.Context, query string) ([]promVectorSample, error) {
 	const providerID = "provider-openai"
 	switch {
-	case strings.Contains(query, "gen_ai_provider_cli_oauth_active_operation_runs_total"):
+	case strings.Contains(query, "gen_ai_provider_surface_probe_active_operation_runs_total"):
 		return []promVectorSample{
 			{Metric: map[string]string{"outcome": "executed", "provider_id": providerID}, Value: 1},
 		}, nil
-	case strings.Contains(query, "gen_ai_provider_cli_oauth_active_operation_last_run_timestamp_seconds"):
+	case strings.Contains(query, "gen_ai_provider_surface_probe_active_operation_last_run_timestamp_seconds"):
 		return []promVectorSample{
 			{Metric: map[string]string{"provider_id": providerID}, Value: 1713452400},
 		}, nil
-	case strings.Contains(query, "gen_ai_provider_cli_oauth_active_operation_last_outcome"):
+	case strings.Contains(query, "gen_ai_provider_surface_probe_active_operation_last_outcome"):
 		return []promVectorSample{
 			{Metric: map[string]string{"provider_id": providerID}, Value: s.outcome},
 		}, nil
-	case strings.Contains(query, "gen_ai_provider_cli_oauth_active_operation_auth_usable"):
+	case strings.Contains(query, "gen_ai_provider_surface_probe_active_operation_auth_usable"):
 		value := float64(1)
 		if s.outcome == 3 {
 			value = 0
@@ -643,11 +637,11 @@ func (s observabilityProbeReasonPrometheusStub) QueryVector(_ context.Context, q
 		return []promVectorSample{
 			{Metric: map[string]string{"provider_id": providerID}, Value: value},
 		}, nil
-	case strings.Contains(query, "gen_ai_provider_cli_oauth_credential_last_used_timestamp_seconds"):
+	case strings.Contains(query, "gen_ai_provider_surface_probe_credential_last_used_timestamp_seconds"):
 		return []promVectorSample{
 			{Metric: map[string]string{"provider_id": providerID}, Value: 1713452400},
 		}, nil
-	case strings.Contains(query, "gen_ai_provider_cli_oauth_active_operation_last_reason"):
+	case strings.Contains(query, "gen_ai_provider_surface_probe_active_operation_last_reason"):
 		reasonValue := float64(1)
 		if s.reasonValueSet {
 			reasonValue = s.reasonValue
@@ -655,7 +649,7 @@ func (s observabilityProbeReasonPrometheusStub) QueryVector(_ context.Context, q
 		return []promVectorSample{
 			{Metric: map[string]string{"provider_id": providerID, "reason": "PROBE_FAILED"}, Value: reasonValue},
 		}, nil
-	case strings.Contains(query, "gen_ai_provider_cli_oauth_active_operation_next_allowed"):
+	case strings.Contains(query, "gen_ai_provider_surface_probe_active_operation_next_allowed"):
 		return []promVectorSample{
 			{Metric: map[string]string{"provider_id": providerID}, Value: 1713452700},
 		}, nil

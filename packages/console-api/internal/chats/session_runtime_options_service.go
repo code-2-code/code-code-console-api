@@ -14,10 +14,6 @@ type providerLister interface {
 	ListProviders(context.Context) ([]*managementv1.ProviderView, error)
 }
 
-type cliDefinitionLister interface {
-	List(context.Context) ([]*managementv1.CLIDefinitionView, error)
-}
-
 type cliSupportLister interface {
 	ListCLIs(context.Context) ([]*supportv1.CLI, error)
 }
@@ -33,23 +29,20 @@ type sessionRuntimeOptionsService interface {
 
 type sessionRuntimeOptionsCatalogService struct {
 	providers        providerLister
-	cliDefinitions   cliDefinitionLister
 	cliSupport       cliSupportLister
 	cliRuntimeImages cliRuntimeImageLister
 }
 
 func NewSessionRuntimeOptionsService(
 	providers providerLister,
-	cliDefinitions cliDefinitionLister,
 	cliSupport cliSupportLister,
 	cliRuntimeImages cliRuntimeImageLister,
 ) sessionRuntimeOptionsService {
-	if providers == nil || cliDefinitions == nil || cliSupport == nil || cliRuntimeImages == nil {
+	if providers == nil || cliSupport == nil || cliRuntimeImages == nil {
 		return nil
 	}
 	return &sessionRuntimeOptionsCatalogService{
 		providers:        providers,
-		cliDefinitions:   cliDefinitions,
 		cliSupport:       cliSupport,
 		cliRuntimeImages: cliRuntimeImages,
 	}
@@ -76,10 +69,6 @@ func (s *sessionRuntimeOptionsCatalogService) loadCatalog(ctx context.Context) (
 	if err != nil {
 		return nil, fmt.Errorf("load CLIs from support: %w", err)
 	}
-	cliDefinitions, err := s.cliDefinitions.List(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("load CLI definitions from provider: %w", err)
-	}
 	providerSurfaces, err := s.providers.ListProviders(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load providers: %w", err)
@@ -88,5 +77,5 @@ func (s *sessionRuntimeOptionsCatalogService) loadCatalog(ctx context.Context) (
 	if err != nil {
 		return nil, fmt.Errorf("load CLI runtime images: %w", err)
 	}
-	return buildRuntimeCatalog(clis, cliDefinitions, availableImages, providerSurfaces), nil
+	return buildRuntimeCatalog(clis, availableImages, providerSurfaces), nil
 }

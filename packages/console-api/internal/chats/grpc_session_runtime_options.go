@@ -162,9 +162,9 @@ func sessionRuntimeOptionsToProto(view *sessionRuntimeOptionsView) *chatv1.GetSe
 			Surfaces:         make([]*chatv1.SessionRuntimeSurfaceOption, 0, len(item.Surfaces)),
 		}
 		for _, surface := range item.Surfaces {
-			runtimeRef := cloneRuntimeRef(surface.RuntimeRef)
 			next.Surfaces = append(next.Surfaces, &chatv1.SessionRuntimeSurfaceOption{
-				RuntimeRef: runtimeRef,
+				ProviderId: surface.ProviderID,
+				Endpoint:   cloneProviderEndpoint(surface.Endpoint),
 				Label:      surface.Label,
 				Models:     append([]string(nil), surface.Models...),
 			})
@@ -189,7 +189,8 @@ func sessionRuntimeOptionsFromProto(response *chatv1.GetSessionRuntimeOptionsRes
 		}
 		for _, surface := range item.GetSurfaces() {
 			next.Surfaces = append(next.Surfaces, sessionRuntimeSurfaceOption{
-				RuntimeRef: cloneRuntimeRef(surface.GetRuntimeRef()),
+				ProviderID: surface.GetProviderId(),
+				Endpoint:   cloneProviderEndpoint(surface.GetEndpoint()),
 				Label:      surface.GetLabel(),
 				Models:     append([]string(nil), surface.GetModels()...),
 			})
@@ -199,9 +200,9 @@ func sessionRuntimeOptionsFromProto(response *chatv1.GetSessionRuntimeOptionsRes
 	return view
 }
 
-func cloneRuntimeRef(ref *providerv1.ProviderRuntimeRef) *providerv1.ProviderRuntimeRef {
-	if ref == nil {
+func cloneProviderEndpoint(endpoint *providerv1.ProviderEndpoint) *providerv1.ProviderEndpoint {
+	if endpoint == nil {
 		return nil
 	}
-	return proto.Clone(ref).(*providerv1.ProviderRuntimeRef)
+	return proto.Clone(endpoint).(*providerv1.ProviderEndpoint)
 }

@@ -21,7 +21,6 @@ import (
 func main() {
 	addr := envOrDefault("CONSOLE_API_ADDR", ":8080")
 	modelConnectBaseURL := envOrDefault("CONSOLE_API_MODEL_CONNECT_BASE_URL", "http://platform-model-service:8080")
-	providerConnectBaseURL := envOrDefault("CONSOLE_API_PROVIDER_CONNECT_BASE_URL", "http://platform-provider-service:8080")
 	providerAddr := envOrDefault("CONSOLE_API_PROVIDER_GRPC_ADDR", "platform-provider-service:8081")
 	orchestrationAddr := envOrDefault("CONSOLE_API_PROVIDER_ORCHESTRATION_GRPC_ADDR", "platform-provider-orchestration-service:8081")
 	profileAddr := envOrDefault("CONSOLE_API_PROFILE_GRPC_ADDR", "platform-profile-service:8081")
@@ -132,10 +131,9 @@ func main() {
 	must(err)
 
 	srv, err := server.New(server.Config{
-		Platform:               platformClient,
-		PrometheusBaseURL:      prometheusBaseURL,
-		ModelConnectBaseURL:    modelConnectBaseURL,
-		ProviderConnectBaseURL: providerConnectBaseURL,
+		Platform:            platformClient,
+		PrometheusBaseURL:   prometheusBaseURL,
+		ModelConnectBaseURL: modelConnectBaseURL,
 	})
 	must(err)
 
@@ -163,7 +161,6 @@ func main() {
 	slog.Info("console-api listening",
 		"addr", addr,
 		"model_connect", modelConnectBaseURL,
-		"provider_connect", providerConnectBaseURL,
 		"provider", providerAddr,
 		"provider_orchestration", orchestrationAddr,
 		"profile", profileAddr,

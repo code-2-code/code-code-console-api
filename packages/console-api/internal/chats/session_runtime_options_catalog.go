@@ -4,7 +4,6 @@ import (
 	"sort"
 	"strings"
 
-	apiprotocolv1 "code-code.internal/go-contract/api_protocol/v1"
 	cliruntimev1 "code-code.internal/go-contract/platform/cli_runtime/v1"
 	managementv1 "code-code.internal/go-contract/platform/management/v1"
 	supportv1 "code-code.internal/go-contract/platform/support/v1"
@@ -14,17 +13,9 @@ import (
 
 func buildRuntimeCatalog(
 	clis []*supportv1.CLI,
-	cliDefinitions []*managementv1.CLIDefinitionView,
 	availableImages []*cliruntimev1.CLIRuntimeImage,
 	providerSurfaces []*managementv1.ProviderView,
 ) *runtimeCatalog {
-	definitionByID := make(map[string]*managementv1.CLIDefinitionView, len(cliDefinitions))
-	for _, item := range cliDefinitions {
-		cliID := strings.TrimSpace(item.GetCliId())
-		if cliID != "" {
-			definitionByID[cliID] = item
-		}
-	}
 	availableExecutionClasses := runtimeAvailableExecutionClasses(availableImages)
 
 	sort.SliceStable(clis, func(i, j int) bool {
@@ -38,7 +29,7 @@ func buildRuntimeCatalog(
 		if providerID == "" {
 			continue
 		}
-		executionClasses := runtimeExecutionClasses(definitionByID[providerID], availableExecutionClasses[providerID])
+		executionClasses := runtimeExecutionClasses(cli, availableExecutionClasses[providerID])
 		surfaces, surfaceCatalog := runtimeProviderSurfaces(providerID, cli, providerSurfaces)
 		if len(executionClasses) == 0 || len(surfaces) == 0 {
 			continue
@@ -69,32 +60,36 @@ func runtimeProviderSurfaces(
 	items := make([]sessionRuntimeSurfaceOption, 0, len(providerSurfaces))
 	catalog := make(map[string]runtimeSurfaceCatalog, len(providerSurfaces))
 	for _, surface := range providerSurfaces {
-		if !matchesRuntimeProvider(providerID, supportedProtocols, surface) {
-			continue
-		}
+		accountID := strings.TrimSpace(surface.GetProviderId())
 		surfaceID := strings.TrimSpace(surface.GetSurfaceId())
 		models := runtimeSurfaceModels(surface)
-		if surfaceID == "" || len(models) == 0 {
+		if accountID == "" || surfaceID == "" || len(models) == 0 {
 			continue
 		}
-		runtimeRef := runtimeRefForSurface(surface)
-		if runtimeRef == nil {
-			continue
-		}
-		key := runtimeRefCatalogKey(runtimeRef)
-		items = append(items, sessionRuntimeSurfaceOption{
-			RuntimeRef: runtimeRef,
-			Label:      runtimeSurfaceLabel(surface),
-			Models:     models,
-		})
-		catalog[key] = runtimeSurfaceCatalog{
-			runtimeRef: proto.Clone(runtimeRef).(*providerv1.ProviderRuntimeRef),
-			models:     setFromStrings(models),
+		for _, endpoint := range surface.GetEndpoints() {
+			if !matchesRuntimeProvider(providerID, supportedProtocols, endpoint) {
+				continue
+			}
+			key := runtimeEndpointCatalogKey(accountID, endpoint)
+			if key == "" {
+				continue
+			}
+			items = append(items, sessionRuntimeSurfaceOption{
+				ProviderID: accountID,
+				Endpoint:   proto.Clone(endpoint).(*providerv1.ProviderEndpoint),
+				Label:      runtimeSurfaceLabel(surface, endpoint),
+				Models:     models,
+			})
+			catalog[key] = runtimeSurfaceCatalog{
+				providerID: accountID,
+				endpoint:   proto.Clone(endpoint).(*providerv1.ProviderEndpoint),
+				models:     setFromStrings(models),
+			}
 		}
 	}
 	sort.SliceStable(items, func(i, j int) bool {
 		if items[i].Label == items[j].Label {
-			return runtimeRefCatalogKey(items[i].RuntimeRef) < runtimeRefCatalogKey(items[j].RuntimeRef)
+			return runtimeEndpointCatalogKey(items[i].ProviderID, items[i].Endpoint) < runtimeEndpointCatalogKey(items[j].ProviderID, items[j].Endpoint)
 		}
 		return items[i].Label < items[j].Label
 	})
@@ -117,16 +112,16 @@ func runtimeAvailableExecutionClasses(images []*cliruntimev1.CLIRuntimeImage) ma
 	return values
 }
 
-func runtimeExecutionClasses(definition *managementv1.CLIDefinitionView, available map[string]struct{}) []string {
-	if definition == nil {
+func runtimeExecutionClasses(cli *supportv1.CLI, available map[string]struct{}) []string {
+	if cli == nil {
 		return nil
 	}
 	if len(available) == 0 {
 		return nil
 	}
-	values := make([]string, 0, len(definition.GetContainerImages()))
+	values := make([]string, 0, len(cli.GetContainerImages()))
 	seen := map[string]struct{}{}
-	for _, item := range definition.GetContainerImages() {
+	for _, item := range cli.GetContainerImages() {
 		executionClass := strings.TrimSpace(item.GetExecutionClass())
 		if executionClass == "" {
 			continue
@@ -154,16 +149,16 @@ func runtimeSupportedProtocols(cli *supportv1.CLI) map[int32]struct{} {
 func matchesRuntimeProvider(
 	providerID string,
 	supportedProtocols map[int32]struct{},
-	surface *managementv1.ProviderView,
+	endpoint *providerv1.ProviderEndpoint,
 ) bool {
-	runtimeOwnerID := providerv1.RuntimeCLIID(surface.GetRuntime())
-	if runtimeOwnerID != "" {
-		return runtimeOwnerID == providerID
+	cliID := providerv1.EndpointCLIID(endpoint)
+	if cliID != "" {
+		return cliID == providerID
 	}
 	if len(supportedProtocols) == 0 {
 		return false
 	}
-	_, ok := supportedProtocols[int32(providerv1.RuntimeProtocol(surface.GetRuntime()))]
+	_, ok := supportedProtocols[int32(providerv1.EndpointProtocol(endpoint))]
 	return ok
 }
 
@@ -174,20 +169,23 @@ func runtimeProviderLabel(item *supportv1.CLI) string {
 	return strings.TrimSpace(item.GetCliId())
 }
 
-func runtimeSurfaceLabel(item *managementv1.ProviderView) string {
-	if label := strings.TrimSpace(item.GetRuntime().GetDisplayName()); label != "" {
-		return label
-	}
+func runtimeSurfaceLabel(item *managementv1.ProviderView, endpoint *providerv1.ProviderEndpoint) string {
 	if label := strings.TrimSpace(item.GetDisplayName()); label != "" {
 		return label
+	}
+	if cliID := providerv1.EndpointCLIID(endpoint); cliID != "" {
+		return cliID
+	}
+	if protocol := providerv1.EndpointProtocol(endpoint); protocol.String() != "" {
+		return protocol.String()
 	}
 	return strings.TrimSpace(item.GetSurfaceId())
 }
 
 func runtimeSurfaceModels(surface *managementv1.ProviderView) []string {
-	values := make([]string, 0, len(surface.GetRuntime().GetCatalog().GetModels())+1)
+	values := make([]string, 0, len(surface.GetModels()))
 	seen := map[string]struct{}{}
-	for _, item := range surface.GetRuntime().GetCatalog().GetModels() {
+	for _, item := range surface.GetModels() {
 		modelID := strings.TrimSpace(item.GetProviderModelId())
 		if modelID == "" {
 			modelID = strings.TrimSpace(item.GetModelRef().GetModelId())
@@ -204,51 +202,13 @@ func runtimeSurfaceModels(surface *managementv1.ProviderView) []string {
 	return values
 }
 
-func runtimeRefForSurface(surface *managementv1.ProviderView) *providerv1.ProviderRuntimeRef {
-	if surface == nil || surface.GetRuntime() == nil {
-		return nil
-	}
-	ref := &providerv1.ProviderRuntimeRef{
-		ProviderId: strings.TrimSpace(surface.GetProviderId()),
-		SurfaceId:  strings.TrimSpace(surface.GetSurfaceId()),
-	}
-	switch access := surface.GetRuntime().GetAccess().(type) {
-	case *providerv1.ProviderSurfaceRuntime_Api:
-		ref.Access = &providerv1.ProviderRuntimeRef_Api{
-			Api: &providerv1.ProviderRuntimeAPIRef{Protocol: access.Api.GetProtocol()},
-		}
-	case *providerv1.ProviderSurfaceRuntime_Cli:
-		ref.Access = &providerv1.ProviderRuntimeRef_Cli{Cli: &providerv1.ProviderRuntimeCLIRef{}}
-	default:
-		return nil
-	}
-	if ref.GetProviderId() == "" || ref.GetSurfaceId() == "" {
-		return nil
-	}
-	return ref
-}
-
-func runtimeRefCatalogKey(ref *providerv1.ProviderRuntimeRef) string {
-	if ref == nil {
+func runtimeEndpointCatalogKey(providerID string, endpoint *providerv1.ProviderEndpoint) string {
+	providerID = strings.TrimSpace(providerID)
+	endpointKey := providerv1.EndpointKey(endpoint)
+	if providerID == "" || endpointKey == "" {
 		return ""
 	}
-	parts := []string{
-		strings.TrimSpace(ref.GetProviderId()),
-		strings.TrimSpace(ref.GetSurfaceId()),
-	}
-	switch access := ref.GetAccess().(type) {
-	case *providerv1.ProviderRuntimeRef_Api:
-		parts = append(parts, "api", protocolKey(access.Api.GetProtocol()))
-	case *providerv1.ProviderRuntimeRef_Cli:
-		parts = append(parts, "cli")
-	default:
-		parts = append(parts, "unspecified")
-	}
-	return strings.Join(parts, "\x00")
-}
-
-func protocolKey(protocol apiprotocolv1.Protocol) string {
-	return strings.TrimSpace(protocol.String())
+	return providerID + "\x00" + endpointKey
 }
 
 func setFromStrings(values []string) map[string]struct{} {

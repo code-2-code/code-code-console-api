@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"code-code.internal/go-contract/platform/model/v1/modelservicev1connect"
-	"code-code.internal/go-contract/platform/provider/v1/providerservicev1connect"
 )
 
 // ConsolePathPrefix is the browser-facing base path for proxied Connect RPCs.
@@ -16,8 +15,7 @@ const ConsolePathPrefix = "/api/connect"
 
 // Config groups platform Connect upstreams exposed through the console proxy.
 type Config struct {
-	ModelBaseURL    string
-	ProviderBaseURL string
+	ModelBaseURL string
 }
 
 // NewHandler returns the console-facing Connect proxy for allowlisted platform RPCs.
@@ -26,13 +24,8 @@ func NewHandler(config Config) (http.Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connectproxy: model upstream: %w", err)
 	}
-	providerTarget, err := parseBaseURL(config.ProviderBaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("connectproxy: provider upstream: %w", err)
-	}
 	return newHandler(map[string]*url.URL{
-		modelservicev1connect.ModelServiceListModelsProcedure:        modelTarget,
-		providerservicev1connect.ProviderServiceListVendorsProcedure: providerTarget,
+		modelservicev1connect.ModelServiceListModelsProcedure: modelTarget,
 	}), nil
 }
 

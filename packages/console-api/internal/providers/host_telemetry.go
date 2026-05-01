@@ -9,7 +9,9 @@ import (
 	"slices"
 	"strings"
 
+	"code-code.internal/console-api/internal/platformclient"
 	managementv1 "code-code.internal/go-contract/platform/management/v1"
+	supportv1 "code-code.internal/go-contract/platform/support/v1"
 	providerv1 "code-code.internal/go-contract/provider/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -48,7 +50,7 @@ func NewHostTelemetryProviderService(delegate providerService, prom promQueryExe
 	return &HostTelemetryProviderService{delegate: delegate, prom: prom}, nil
 }
 
-func (s *HostTelemetryProviderService) ListProviderSurfaceMetadata(ctx context.Context) ([]*providerv1.ProviderSurface, error) {
+func (s *HostTelemetryProviderService) ListProviderSurfaceMetadata(ctx context.Context) ([]*supportv1.Surface, error) {
 	return s.delegate.ListProviderSurfaceMetadata(ctx)
 }
 
@@ -72,8 +74,16 @@ func (s *HostTelemetryProviderService) UpdateProviderObservabilityAuthentication
 	return s.delegate.UpdateProviderObservabilityAuthentication(ctx, providerID, request)
 }
 
+func (s *HostTelemetryProviderService) GetProviderAuthenticationSummary(ctx context.Context, providerID string) (*platformclient.ProviderAuthenticationSummary, error) {
+	return s.delegate.GetProviderAuthenticationSummary(ctx, providerID)
+}
+
 func (s *HostTelemetryProviderService) DeleteProvider(ctx context.Context, providerID string) error {
 	return s.delegate.DeleteProvider(ctx, providerID)
+}
+
+func (s *HostTelemetryProviderService) ProbeProviderModelCatalog(ctx context.Context, providerID string) (*managementv1.ProbeProviderModelCatalogResponse, error) {
+	return s.delegate.ProbeProviderModelCatalog(ctx, providerID)
 }
 
 func (s *HostTelemetryProviderService) Connect(ctx context.Context, request *managementv1.ConnectProviderRequest) (*managementv1.ConnectProviderResponse, error) {
@@ -89,28 +99,9 @@ func (s *HostTelemetryProviderService) WatchStatusEvents(ctx context.Context, pr
 }
 
 func (s *HostTelemetryProviderService) attachHostTelemetry(ctx context.Context, providers []*managementv1.ProviderView) []*managementv1.ProviderView {
-	targets := providerHostTelemetryTargetsFromProviders(providers)
-	if len(targets) == 0 {
-		return providers
-	}
-	points := map[string]*providerHostTelemetryPoint{}
-	if s != nil && s.prom != nil {
-		if samples, err := s.prom.QueryVector(ctx, providerHostTelemetryQuery); err == nil {
-			points = providerHostTelemetryPointsFromSamples(samples)
-		}
-	}
-	for _, provider := range providers {
-		if provider == nil {
-			continue
-		}
-		providerTelemetryByKey := map[string]*managementv1.ProviderHostTelemetry{}
-		target, ok := providerHostTelemetryTargetFromProvider(provider)
-		if ok {
-			telemetry := providerHostTelemetryView(target, points[target.key])
-			providerTelemetryByKey[target.key] = telemetry
-		}
-		provider.HostTelemetry = sortedProviderHostTelemetry(providerTelemetryByKey)
-	}
+	_ = ctx
+	// Host telemetry is no longer part of ProviderView; callers use the
+	// observability endpoints for provider health details.
 	return providers
 }
 
@@ -167,10 +158,17 @@ func providerHostTelemetryTargetFromMetric(metric map[string]string) (providerHo
 }
 
 func providerHostTelemetryTargetFromProvider(provider *managementv1.ProviderView) (providerHostTelemetryTarget, bool) {
-	if provider == nil || provider.GetRuntime().GetApi() == nil {
+	if provider == nil {
 		return providerHostTelemetryTarget{}, false
 	}
-	return normalizeProviderHostTelemetryTarget(provider.GetRuntime().GetApi().GetBaseUrl())
+	for _, endpoint := range provider.GetEndpoints() {
+		baseURL := providerv1.EndpointBaseURL(endpoint)
+		if baseURL == "" {
+			continue
+		}
+		return normalizeProviderHostTelemetryTarget(baseURL)
+	}
+	return providerHostTelemetryTarget{}, false
 }
 
 func normalizeProviderHostTelemetryTarget(raw string) (providerHostTelemetryTarget, bool) {
