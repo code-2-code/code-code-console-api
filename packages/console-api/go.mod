@@ -21,6 +21,7 @@ require (
 )
 
 require (
+	code-code.internal/platform-contract v0.0.0 // indirect
 	connectrpc.com/connect v1.19.2 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -45,6 +46,8 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d // indirect
 )
 
-replace code-code.internal/go-contract => ../go-contract
+replace code-code.internal/go-contract => ../../code-code-contracts/packages/go-contract
 
-replace code-code.internal/session => ../session
+replace code-code.internal/session => ../../code-code-platform-session/packages/session
+
+replace code-code.internal/platform-contract => ../../code-code-platform-session/packages/platform-contract
